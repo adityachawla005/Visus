@@ -1,6 +1,6 @@
-#  AgentOps — Autonomous UX Optimization Platform
+#  Visus — Autonomous UX Optimization Platform
 
-AgentOps is an intelligent A/B testing and session analytics engine that automatically collects user interaction data, analyzes it, and suggests UI optimizations using agentic AI.
+Visus is an intelligent A/B testing and session analytics engine that automatically collects user interaction data, analyzes it, and suggests UI optimizations using agentic AI.
 
  Track. Analyze. Optimize. All in one lightweight system.
 
@@ -28,4 +28,4 @@ AgentOps is an intelligent A/B testing and session analytics engine that automat
 | Dev Tools   | ts-node-dev, dotenv, curl            |
 
 ```
-![](https://github.com/adityachawla005/AgentOps/blob/master/sample.png)
+
