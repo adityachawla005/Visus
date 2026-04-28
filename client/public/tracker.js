@@ -1,66 +1,91 @@
-const session_id = localStorage.getItem('session_id') || crypto.randomUUID();
-localStorage.setItem('session_id', session_id);
+/**
+ * Visus tracker — injected into the client's site.
+ * Reads window.__VISUS_SITE_ID__ and window.__VISUS_API__ (set by the crawl route).
+ * Fetches the selector map + active variants, swaps elements, records impressions/clicks.
+ */
+(async () => {
+  const SITE_ID = window.__VISUS_SITE_ID__;
+  const API     = window.__VISUS_API__ || 'https://your-visus-server.com';
 
-const page = window.location.pathname;
-const user_agent = navigator.userAgent;
-const events: any[] = [];
+  if (!SITE_ID) return; // no-op if the site hasn't been configured
 
-document.querySelectorAll('[data-track]').forEach(async (el) => {
-  const elementId = el.id;
-
-  // 🧠 Get a random variant from the backend
-  const res = await fetch(`http://localhost:8000/variant/${elementId}`);
-  if (!res.ok) return;
-
-  const variant = await res.json();
-  if (!variant || !variant.html) return;
-  
-
-  // 🧬 Replace original element with optimized HTML
-  const tempWrapper = document.createElement('div');
-  tempWrapper.innerHTML = variant.html;
-  const newEl = tempWrapper.firstElementChild;
-  if (!newEl) return;
-  if (el.outerHTML.trim() === newEl.outerHTML.trim()) return;
-
-  el.replaceWith(newEl);
-  // 🖌️ Apply CSS if available
-  if (variant.css) {
-    const style = document.createElement('style');
-    style.innerHTML = variant.css;
-    document.head.appendChild(style);
+  // ── Sticky bucket: same visitor always sees the same variant ──────────────
+  let bucket = localStorage.getItem('visus_bucket');
+  if (!bucket) {
+    bucket = Math.random() < 0.5 ? 'A' : 'B';
+    localStorage.setItem('visus_bucket', bucket);
   }
 
-  el.replaceWith(newEl);
+  // ── Fetch selector map + active variants for this specific page ──────────
+  const pagePath = encodeURIComponent(window.location.pathname || '/');
+  let selectorMap, variants;
+  try {
+    const data = await fetch(`${API}/tracker/${SITE_ID}?path=${pagePath}`).then(r => r.json());
+    selectorMap = data.selectorMap ?? {};
+    variants    = data.variants    ?? {};
+  } catch (err) {
+    console.warn('[Visus] Could not reach API:', err);
+    return;
+  }
 
-  // 🧠 Track impression
-  fetch(`http://localhost:8000/variant/${variant.id}/impression`, {
-    method: 'POST',
-  });
+  // ── Find and swap each tracked element ───────────────────────────────────
+  for (const [trackId, entry] of Object.entries(selectorMap)) {
+    const el = findElement(entry);
+    if (!el) continue;
 
-  // 🖱️ Track click
-  newEl.addEventListener('click', () => {
-    events.push({
-      type: 'click',
-      element: newEl.tagName + (newEl.id ? `#${newEl.id}` : ''),
-      timestamp: Date.now(),
-    });
+    // Tag the element so the old impression/click paths still work
+    el.setAttribute('data-track', trackId);
 
-    fetch(`http://localhost:8000/variant/${variant.id}/click`, {
-      method: 'POST',
-    });
-  });
-});
+    const variantSet = variants[trackId];
+    if (!variantSet) continue;
 
-// 🔁 Every 10 seconds, send batched events
-setInterval(() => {
-  if (events.length === 0) return;
+    const chosen = variantSet[bucket];
+    if (!chosen?.html) continue;
 
-  fetch('http://localhost:8000/track', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id, page, user_agent, events: [...events] }),
-  });
+    // Inject scoped CSS
+    if (chosen.css) {
+      const style = document.createElement('style');
+      style.setAttribute('data-visus', trackId);
+      style.textContent = chosen.css;
+      document.head.appendChild(style);
+    }
 
-  events.length = 0;
-}, 10000);
+    // Swap element
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = chosen.html;
+    const newEl = wrapper.firstElementChild;
+    if (!newEl) continue;
+
+    el.replaceWith(newEl);
+
+    // Impression
+    fetch(`${API}/variant/${chosen.id}/impression`, { method: 'POST' }).catch(() => {});
+
+    // Click
+    newEl.addEventListener('click', () => {
+      fetch(`${API}/variant/${chosen.id}/click`, { method: 'POST' }).catch(() => {});
+    }, { once: true });
+  }
+
+  // ── Element finder with three-level fallback ──────────────────────────────
+  function findElement(entry) {
+    const { cssSelector, tagName, textContent, position } = entry;
+
+    // 1. Try the stored CSS selector (works for stable class names / IDs)
+    try {
+      const el = document.querySelector(cssSelector);
+      if (el) return el;
+    } catch (_) { /* invalid selector — skip */ }
+
+    // 2. Tag + exact text match (handles hashed class names like btn_a3f9x)
+    if (textContent) {
+      const match = Array.from(document.querySelectorAll(tagName))
+        .find(e => e.textContent.trim() === textContent.trim());
+      if (match) return match;
+    }
+
+    // 3. Positional fallback — nth element of that tag type
+    const byPosition = document.querySelectorAll(tagName)[position];
+    return byPosition || null;
+  }
+})();

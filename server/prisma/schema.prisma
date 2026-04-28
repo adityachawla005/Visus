@@ -7,33 +7,116 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Session {
-  id         Int      @id @default(autoincrement())
-  session_id String
-  page       String
-  events     Json
-  createdAt  DateTime @default(now())
+model Site {
+  id              String           @id @default(cuid())
+  url             String           @unique
+  githubRepo      String?
+  githubToken     String?
+  autoMerge       Boolean          @default(false)
+  trackerPrUrl    String?
+  trackerPrNumber Int?
+  trackerInjected Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  profile         SiteProfile?
+  experiments     Experiment[]
+  elements        PageElement[]
+  discoveredPages DiscoveredPage[]
+}
+
+model SiteProfile {
+  id             String   @id @default(cuid())
+  siteId         String   @unique
+  site           Site     @relation(fields: [siteId], references: [id])
+  theme          String   @default("")
+  tone           String   @default("")
+  primaryColors  Json     @default("[]")
+  fontStyle      String   @default("")
+  layoutPattern  String   @default("")
+  targetAudience String   @default("")
+  conversionGoal String   @default("")
+  copy           String   @default("")
+  weaknesses     Json     @default("[]")
+  selectorMap    Json     @default("{}")
+  screenshotB64  String?
+  analyzedAt     DateTime @default(now())
+}
+
+model Experiment {
+  id            Int          @id @default(autoincrement())
+  siteId        String
+  site          Site         @relation(fields: [siteId], references: [id])
+  status        String       @default("analyzing") // analyzing | running | completed | failed | cooldown
+  cycleCount    Int          @default(0)
+  cooldownUntil DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  hypotheses    Hypothesis[]
+}
+
+model Hypothesis {
+  id              Int        @id @default(autoincrement())
+  experimentId    Int
+  experiment      Experiment @relation(fields: [experimentId], references: [id])
+  description     String
+  elementSelector String
+  rationale       String
+  pagePath        String     @default("/")
+  status          String     @default("queued") // queued | running | completed
+  winnerId        Int?
+  prUrl           String?
+  prNumber        Int?
+  liftPct         Float?
+  createdAt       DateTime   @default(now())
+  variants        Variant[]
+}
+
+model DiscoveredPage {
+  id          Int      @id @default(autoincrement())
+  siteId      String
+  site        Site     @relation(fields: [siteId], references: [id])
+  url         String
+  path        String
+  title       String   @default("")
+  importance  Int      @default(0)
+  category    String   @default("other")
+  status      String   @default("pending") // pending | analyzing | testing | done
+  selectorMap Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@unique([siteId, path])
 }
 
 model Variant {
-  id          Int      @id @default(autoincrement())
-  name        String
-  elementId   String
-  version     Int
-  impressions Int      @default(0)
-  clicks      Int      @default(0)
-  html        String   @default("") 
-  css         String   @default("") 
-  createdAt   DateTime @default(now())
+  id           Int         @id @default(autoincrement())
+  name         String
+  elementId    String
+  version      Int
+  impressions  Int         @default(0)
+  clicks       Int         @default(0)
+  html         String      @default("")
+  css          String      @default("")
+  hypothesisId Int?
+  hypothesis   Hypothesis? @relation(fields: [hypothesisId], references: [id])
+  createdAt    DateTime    @default(now())
 }
 
 model PageElement {
-  id        String   @id @default(cuid())  // Primary key
-  domId     String   // ✅ New field for DOM id
+  id        String   @id @default(cuid())
+  siteId    String?
+  site      Site?    @relation(fields: [siteId], references: [id])
+  domId     String
   tag       String
   classes   String
   text      String
   outerHTML String
   pagePath  String
   createdAt DateTime @default(now())
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  session_id String
+  page       String
+  events     Json
+  createdAt  DateTime @default(now())
 }
