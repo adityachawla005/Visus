@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect, useCallback } from 'react';
+import React, { use, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -108,7 +108,10 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   const [queue, setQueue]       = useState<QueueData | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [preview, setPreview]   = useState<'A' | 'B'>('A');
+  const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [approving, setApproving] = useState<number | null>(null);
+  const [cursor, setCursor] = useState({ x: 0, y: 0 });
+  const [copied, setCopied] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -149,8 +152,9 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   }
 
   if (!exp) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
-      Loading…
+    <div className="empty-state" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span className="radar-dot neon-pulse-cyan" style={{ color: 'var(--accent)', background: 'var(--accent)', width: 12, height: 12, marginRight: 12 }} />
+      <span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 600 }}>Decrypting cyber telemetry...</span>
     </div>
   );
 
@@ -158,224 +162,274 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   const siteProfile = exp.site.profile;
 
   return (
-    <main style={{ minHeight: '100vh', background: 'var(--background)', color: 'var(--foreground)' }}>
-
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 28px', display: 'flex', alignItems: 'center', gap: 14 }}>
-        <Link href="/" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: 13 }}>← Dashboard</Link>
-        <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
-        <span style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-          {exp.site.url}
-        </span>
-        {exp.site.githubRepo && (
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{exp.site.githubRepo}</span>
-        )}
-        <StatusBadge status={exp.status} />
-        {exp.cycleCount > 0 && (
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>cycle {exp.cycleCount}</span>
-        )}
+    <main
+      className="dash-shell deck-3d"
+      style={{ '--mx': cursor.x, '--my': cursor.y } as React.CSSProperties}
+      onMouseMove={event => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        setCursor({
+          x: Number(((event.clientX - rect.left) / rect.width - 0.5).toFixed(3)),
+          y: Number(((event.clientY - rect.top) / rect.height - 0.5).toFixed(3)),
+        });
+      }}
+    >
+      <header className="topbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <Link href="/dashboard" className="button button-ghost" style={{ minHeight: 32, padding: '0 12px', fontSize: 12 }}>
+            ← dashboard
+          </Link>
+          <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
+          <span className="neon-glow-text" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', color: 'var(--foreground)' }}>
+            {exp.site.url}
+          </span>
+          {exp.site.githubRepo && (
+            <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+              ({exp.site.githubRepo})
+            </span>
+          )}
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {exp.cycleCount > 0 && (
+            <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+              cycle: <strong style={{ color: 'var(--accent-2)' }}>0{exp.cycleCount}</strong>
+            </span>
+          )}
+          <StatusBadge status={exp.status} />
+        </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', minHeight: 'calc(100vh - 53px)' }}>
-
-        {/* Sidebar */}
-        <aside style={{ borderRight: '1px solid var(--border)', padding: '20px 14px', overflowY: 'auto' }}>
-
+      <div className="dash-layout container" style={{ gridTemplateColumns: '320px 1fr', gap: 24, marginTop: 24 }}>
+        
+        {/* Sidebar / Sidebar Panels */}
+        <aside className="dash-sidebar tilt-wrapper-gentle" style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 0 }}>
+          
           {/* Test Queue */}
-          <section style={{ marginBottom: 28 }}>
+          <section className="hologram-panel panel-pad">
+            <div className="laser-horizontal" />
             <SectionLabel>Test Queue</SectionLabel>
             {exp.hypotheses.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Generating…</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: '24px 0' }}>
+                Generating hypotheses...
+              </div>
             )}
-            {exp.hypotheses.map(h => (
-              <button
-                key={h.id}
-                onClick={() => setSelected(h.id)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  background: selected === h.id ? 'var(--accent-dim)' : 'transparent',
-                  border: `1px solid ${selected === h.id ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 8,
-                  padding: '10px 12px',
-                  color: 'var(--foreground)',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  marginBottom: 6,
-                  lineHeight: 1.4,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 500 }}>{h.elementSelector}</span>
-                  <span style={{ fontSize: 14 }}>{h.queueLabel}</span>
-                </div>
-                {h.pagePath && h.pagePath !== '/' && (
-                  <div style={{ fontSize: 10, color: 'var(--accent)', marginBottom: 3, fontFamily: 'monospace' }}>
-                    {h.pagePath}
-                  </div>
-                )}
-                <div style={{ color: 'var(--muted)', marginBottom: 4 }}>{h.description}</div>
-                {h.liftPct != null && (
-                  <div style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>
-                    +{h.liftPct.toFixed(1)}% CTR
-                  </div>
-                )}
-                {h.prUrl && (
-                  <a
-                    href={h.prUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    style={{ fontSize: 11, color: 'var(--accent)', display: 'block', marginTop: 4 }}
-                  >
-                    View PR →
-                  </a>
-                )}
-              </button>
-            ))}
-          </section>
-
-          {/* Conversion funnel */}
-          {exp.site.discoveredPages.length > 0 && (
-            <section style={{ marginBottom: 28 }}>
-              <SectionLabel>Funnel</SectionLabel>
-              {exp.site.discoveredPages.map(dp => {
-                const pageTests = exp.hypotheses.filter(h => h.pagePath === dp.path);
-                const running   = pageTests.find(h => h.status === 'running');
-                const done      = pageTests.filter(h => h.status === 'completed').length;
-                const dotColor  =
-                  dp.status === 'testing' ? '#60a5fa' :
-                  dp.status === 'done'    ? '#22c55e' :
-                  dp.status === 'analyzing' ? '#eab308' : 'var(--border)';
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {exp.hypotheses.map(h => {
+                const qi = queue?.queue.find(q => q.id === h.id);
+                const progressVal = qi?.progress ?? 0;
+                const isSelected = selected === h.id;
+                const isActive = h.status === 'running';
+                
                 return (
-                  <div key={dp.id} style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 10,
-                    marginBottom: 10,
-                    padding: '8px 10px',
-                    background: running ? 'var(--accent-dim)' : 'transparent',
-                    border: `1px solid ${running ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 7,
-                  }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, marginTop: 4, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {dp.path}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 6 }}>
-                        <span style={{
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 4,
-                          padding: '1px 5px',
-                        }}>
-                          {dp.category}
-                        </span>
-                        {pageTests.length > 0 && (
-                          <span>{done}/{pageTests.length} tests</span>
-                        )}
-                      </div>
+                  <button
+                    key={h.id}
+                    onClick={() => setSelected(h.id)}
+                    className="hologram-panel"
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '12px',
+                      cursor: 'pointer',
+                      background: isSelected ? 'rgba(0, 231, 255, 0.08)' : 'rgba(11, 17, 27, 0.44)',
+                      borderColor: isSelected ? 'var(--accent)' : 'var(--border-soft)',
+                      position: 'relative',
+                    }}
+                  >
+                    {/* Glowing progress layer behind button */}
+                    {progressVal > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${progressVal}%`,
+                        background: isActive ? 'rgba(0, 231, 255, 0.04)' : 'rgba(255, 255, 255, 0.02)',
+                        transition: 'width 0.4s',
+                        zIndex: 0,
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, position: 'relative', zIndex: 1 }}>
+                      <span style={{ fontWeight: 700, fontSize: 12, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>
+                        {h.elementSelector}
+                      </span>
+                      <span className={isActive ? 'neon-pulse-cyan' : ''} style={{ fontSize: 13 }}>{h.queueLabel}</span>
                     </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', flexShrink: 0 }}>
-                      {dp.importance}/10
+                    
+                    {h.pagePath && h.pagePath !== '/' && (
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--accent-2)', marginBottom: 6, position: 'relative', zIndex: 1 }}>
+                        {h.pagePath}
+                      </div>
+                    )}
+                    
+                    <div style={{ color: 'var(--muted)', fontSize: 11, lineHeight: 1.4, marginBottom: 6, position: 'relative', zIndex: 1 }}>
+                      {h.description}
                     </div>
-                  </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
+                      {h.liftPct != null ? (
+                        <div className="neon-glow-text-lime" style={{ fontSize: 11, color: 'var(--green)', fontWeight: 800 }}>
+                          +{h.liftPct.toFixed(1)}% CTR lift
+                        </div>
+                      ) : <span />}
+                      {h.prUrl && (
+                        <a
+                          href={h.prUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{ fontSize: 10, color: 'var(--accent)', textDecoration: 'none', fontWeight: 650 }}
+                        >
+                          View PR →
+                        </a>
+                      )}
+                    </div>
+                  </button>
                 );
               })}
+            </div>
+          </section>
+
+          {/* Conversion Funnel */}
+          {exp.site.discoveredPages.length > 0 && (
+            <section className="hologram-panel panel-pad" style={{ position: 'relative' }}>
+              <SectionLabel>Funnel Prioritization</SectionLabel>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
+                {exp.site.discoveredPages.map((dp, idx) => {
+                  const pageTests = exp.hypotheses.filter(h => h.pagePath === dp.path);
+                  const running   = pageTests.find(h => h.status === 'running');
+                  const done      = pageTests.filter(h => h.status === 'completed').length;
+                  const dotColor  =
+                    dp.status === 'testing' ? '#00e7ff' :
+                    dp.status === 'done'    ? '#d7ff3f' :
+                    dp.status === 'analyzing' ? '#ffe66d' : 'var(--border)';
+                    
+                  return (
+                    <div key={dp.id} className={`pipeline-node ${running ? 'active' : ''}`} style={{ padding: '8px 10px' }}>
+                      {/* Vertical pipeline paths */}
+                      {idx < exp.site.discoveredPages.length - 1 && (
+                        <div className="pipeline-connector-line" style={{ background: `linear-gradient(180deg, ${dotColor}, transparent)` }} />
+                      )}
+                      
+                      <span className={`radar-dot ${running ? 'neon-pulse-cyan' : ''}`} style={{ color: dotColor, background: dotColor, marginTop: 4, width: 6, height: 6 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="mono truncate" style={{ fontSize: 11, fontWeight: 700, color: 'var(--foreground)' }}>
+                          {dp.path}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span style={{
+                            background: 'rgba(5,7,12,0.4)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 4,
+                            padding: '0 4px',
+                            fontSize: 9,
+                            textTransform: 'uppercase'
+                          }}>
+                            {dp.category}
+                          </span>
+                          {pageTests.length > 0 && (
+                            <span>{done}/{pageTests.length} tests</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mono" style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)' }}>
+                        {dp.importance}/10
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           )}
 
-          {/* Cooldown notice */}
+          {/* Cooldown Area */}
           {exp.status === 'cooldown' && exp.cooldownUntil && (
-            <div style={{
-              background: '#1e1b4b',
-              border: '1px solid #a78bfa',
-              borderRadius: 8,
-              padding: '10px 12px',
-              fontSize: 12,
-              color: '#a78bfa',
-              marginBottom: 20,
+            <div className="hologram-panel panel-pad" style={{
+              background: 'rgba(255, 61, 139, 0.08)',
+              borderColor: 'var(--accent-3)',
             }}>
-              Cooldown — next cycle starts {new Date(exp.cooldownUntil).toLocaleDateString()}
+              <span className="radar-dot neon-pulse-pink" style={{ color: 'var(--accent-3)', background: 'var(--accent-3)', width: 6, height: 6, marginBottom: 8, display: 'block' }} />
+              <div style={{ fontSize: 12, color: 'var(--foreground)', fontWeight: 700 }}>
+                Autonomous Cooldown Active
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                Loop is paused. Next optimization scans start: {new Date(exp.cooldownUntil).toLocaleDateString()}
+              </div>
             </div>
           )}
 
-          {/* Site profile */}
+          {/* Site Profile */}
           {siteProfile?.theme && (
-            <section style={{ marginBottom: 24 }}>
-              <SectionLabel>Site Profile</SectionLabel>
-              <ProfileRow label="Theme"    value={siteProfile.theme} />
-              <ProfileRow label="Tone"     value={siteProfile.tone} />
-              <ProfileRow label="Layout"   value={siteProfile.layoutPattern} />
-              <ProfileRow label="Audience" value={siteProfile.targetAudience} />
-              <ProfileRow label="Goal"     value={siteProfile.conversionGoal} />
-              {siteProfile.primaryColors && (
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  {siteProfile.primaryColors.map(c => (
-                    <div key={c} title={c} style={{ width: 16, height: 16, borderRadius: 4, background: c, border: '1px solid var(--border)' }} />
-                  ))}
-                </div>
-              )}
+            <section className="hologram-panel panel-pad">
+              <SectionLabel>Cyber Profile</SectionLabel>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <ProfileRow label="Theme"    value={siteProfile.theme} />
+                <ProfileRow label="Tone"     value={siteProfile.tone} />
+                <ProfileRow label="Layout"   value={siteProfile.layoutPattern} />
+                <ProfileRow label="Goal"     value={siteProfile.conversionGoal} />
+                {siteProfile.primaryColors && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    {siteProfile.primaryColors.map(c => (
+                      <div key={c} title={c} style={{ width: 14, height: 14, borderRadius: 3, background: c, border: '1px solid rgba(255,255,255,0.08)' }} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
           {/* Weaknesses */}
           {(siteProfile?.weaknesses?.length ?? 0) > 0 && (
-            <section>
-              <SectionLabel>Detected Weaknesses</SectionLabel>
-              {siteProfile!.weaknesses!.map((w, i) => (
-                <div key={i} style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6, paddingLeft: 10, borderLeft: '2px solid var(--accent-dim)' }}>
-                  {w}
-                </div>
-              ))}
+            <section className="hologram-panel panel-pad">
+              <SectionLabel>Leaking Areas</SectionLabel>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {siteProfile!.weaknesses!.map((w, i) => (
+                  <div key={i} style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4, paddingLeft: 8, borderLeft: '2px solid var(--accent-3)' }}>
+                    {w}
+                  </div>
+                ))}
+              </div>
             </section>
           )}
         </aside>
 
-        {/* Main panel */}
-        <section style={{ padding: '28px 32px', overflowY: 'auto' }}>
+        {/* Main Work Area */}
+        <section className="dash-main tilt-wrapper-gentle" style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 0 }}>
 
-          {/* Tracker injection banner — shown until the PR is merged + deployed */}
+          {/* Tracker Notification Banner */}
           {exp.site.trackerPrUrl && !exp.site.trackerInjected && (
-            <div style={{
-              background: '#1c1a07',
-              border: '1px solid #eab308',
-              borderRadius: 10,
-              padding: '16px 20px',
-              marginBottom: 24,
+            <div className="hologram-panel panel-pad" style={{
+              background: 'rgba(255, 230, 109, 0.08)',
+              borderColor: 'var(--warning)',
               display: 'flex',
               alignItems: 'center',
               gap: 16,
             }}>
-              <div style={{ fontSize: 20 }}>⏳</div>
+              <span className="radar-dot" style={{ color: 'var(--warning)', background: 'var(--warning)', width: 10, height: 10 }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#eab308', marginBottom: 4 }}>
-                  Action required: merge the tracker PR
+                <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--warning)', marginBottom: 4 }}>
+                  Awaiting Telemetry integration
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                  Variants are ready. Visus opened a PR that injects the telemetry script into your repo.
-                  Merge it, deploy, and real visitor data will start flowing automatically.
+                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+                  Visus opened a PR injecting the telemetry scripts into your source code. Merge it and deploy to staging/production to unlock actual user click tracking.
                 </div>
               </div>
               <a
                 href={exp.site.trackerPrUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                className="button button-accent"
                 style={{
-                  padding: '8px 18px',
-                  background: '#eab308',
-                  border: 'none',
-                  borderRadius: 7,
+                  minHeight: 36,
+                  background: 'var(--warning)',
                   color: '#000',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
+                  boxShadow: 'none',
+                  fontSize: 12,
                 }}
               >
-                View PR on GitHub
+                Merge telemetry
               </a>
             </div>
           )}
@@ -384,85 +438,86 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
             <div style={{
               fontSize: 12,
               color: 'var(--green)',
-              fontWeight: 500,
-              marginBottom: 20,
+              fontWeight: 650,
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 8,
             }}>
-              <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--green)' }} />
-              Tracker live — collecting real visitor data
+              <span className="radar-dot neon-pulse-lime" style={{ color: 'var(--accent-2)', background: 'var(--accent-2)', width: 6, height: 6 }} />
+              <span>Telemetry live — collecting real visitor metrics</span>
             </div>
           )}
 
           {activeHyp ? (
             <>
-              {/* Hypothesis header */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: STATUS_COLOR[activeHyp.status], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
-                    {activeHyp.status === 'running' ? 'Running now' : activeHyp.status}
-                  </div>
-                  <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>{activeHyp.description}</h2>
-                  <p style={{ fontSize: 13, color: 'var(--muted)' }}>{activeHyp.rationale}</p>
-                </div>
-                {activeHyp.liftPct != null && (
-                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 24 }}>
-                    <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--green)' }}>
-                      +{activeHyp.liftPct.toFixed(1)}%
+              {/* Hypothesis Title Board */}
+              <div className="hologram-panel panel-pad">
+                <div className="laser-horizontal" style={{ animationDelay: '-1s' }} />
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
+                  <div>
+                    <div className="mono" style={{ fontSize: 10, color: STATUS_COLOR[activeHyp.status], fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                      {activeHyp.status === 'running' ? 'scanning live traffic' : activeHyp.status}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>CTR lift</div>
+                    <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 8, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{activeHyp.description}</h2>
+                    <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.45 }}>{activeHyp.rationale}</p>
                   </div>
-                )}
+                  {activeHyp.liftPct != null && (
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div className="neon-glow-text-lime" style={{ fontSize: 36, fontWeight: 900, color: 'var(--green)', lineHeight: 1 }}>
+                        +{activeHyp.liftPct.toFixed(1)}%
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>
+                        CTR LIFT
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Progress Bar */}
+                {activeHyp.status === 'running' && queue && (() => {
+                  const qi = queue.queue.find(q => q.id === activeHyp.id);
+                  return qi ? (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
+                        <span className="mono">TRAFFIC PROGRESS</span>
+                        <span className="mono">{qi.impressionsA + qi.impressionsB} / 1,000 visitors</span>
+                      </div>
+                      <div style={{ height: 6, background: 'rgba(5,7,12,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 9, overflow: 'hidden' }}>
+                        <div style={{ width: `${qi.progress}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--accent-2))', borderRadius: 9, transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
               </div>
 
-              {/* Progress bar (while running) */}
-              {activeHyp.status === 'running' && queue && (() => {
-                const qi = queue.queue.find(q => q.id === activeHyp.id);
-                return qi ? (
-                  <div style={{ marginBottom: 28 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
-                      <span>Traffic collected</span>
-                      <span>{qi.impressionsA + qi.impressionsB} / 1,000 visitors needed</span>
-                    </div>
-                    <div style={{ height: 6, background: 'var(--surface)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: `${qi.progress}%`, height: '100%', background: 'var(--accent)', borderRadius: 3, transition: 'width 0.5s ease' }} />
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
-              {/* A/B stat cards */}
+              {/* A/B results visual deck */}
               {activeHyp.variants.length > 0 && (
-                <div style={{ marginBottom: 32 }}>
-                  <SectionLabel>Live Results</SectionLabel>
-                  <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <SectionLabel>Live Experiment Signals</SectionLabel>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                     {activeHyp.variants.map(v => {
                       const isWinner = v.id === activeHyp.winnerId;
                       return (
-                        <div key={v.id} style={{
-                          flex: 1,
-                          background: 'var(--surface)',
-                          border: `1px solid ${isWinner ? 'var(--green)' : 'var(--border)'}`,
-                          borderRadius: 12,
-                          padding: '18px 20px',
-                          position: 'relative',
+                        <div key={v.id} className={isWinner ? 'hologram-panel hologram-panel-lime' : 'hologram-panel'} style={{
+                          padding: '20px',
+                          borderWidth: isWinner ? '1px' : '1px',
+                          borderColor: isWinner ? 'var(--accent-2)' : 'rgba(247,251,255,0.08)',
                         }}>
                           {isWinner && (
                             <div style={{
-                              position: 'absolute', top: -1, right: -1,
-                              background: 'var(--green)', color: '#000',
-                              fontSize: 9, fontWeight: 700, padding: '3px 8px',
-                              borderRadius: '0 12px 0 8px', letterSpacing: '0.08em',
+                              position: 'absolute', top: 0, right: 0,
+                              background: 'var(--accent-2)', color: '#000',
+                              fontSize: 9, fontWeight: 900, padding: '3px 8px',
+                              borderRadius: '0 0 0 8px', letterSpacing: '0.08em',
                             }}>
                               WINNER
                             </div>
                           )}
-                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{v.name}</div>
-                          <div style={{ fontSize: 36, fontWeight: 700, color: isWinner ? 'var(--green)' : 'var(--foreground)', lineHeight: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>{v.name}</div>
+                          <div className={isWinner ? 'neon-glow-text-lime' : 'neon-glow-text'} style={{ fontSize: 36, fontWeight: 900, color: isWinner ? 'var(--accent-2)' : 'var(--foreground)', lineHeight: 1 }}>
                             {v.ctr}
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, fontWeight: 500 }}>
                             {v.clicks} clicks · {v.impressions} impressions
                           </div>
                         </div>
@@ -470,9 +525,9 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
                     })}
                   </div>
 
-                  {/* Bar chart */}
+                  {/* High-tech Recharts bar chart */}
                   {activeHyp.variants.some(v => v.impressions > 0) && (
-                    <div style={{ height: 160 }}>
+                    <div className="hologram-panel panel-pad" style={{ height: 200 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={activeHyp.variants.map(v => ({
                           name: v.name,
@@ -481,15 +536,15 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
                           impressions: v.impressions,
                           isWinner: v.id === activeHyp.winnerId,
                         }))}>
-                          <XAxis dataKey="name" tick={{ fill: 'var(--muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
-                          <YAxis unit="%" tick={{ fill: 'var(--muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                          <XAxis dataKey="name" tick={{ fill: 'var(--muted)', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                          <YAxis unit="%" tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                           <Tooltip
-                            contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                            contentStyle={{ background: 'rgba(8,14,27,0.9)', border: '1px solid rgba(0,231,255,0.2)', borderRadius: 8, fontSize: 11, backdropFilter: 'blur(8px)' }}
                             formatter={(val, _, p) => [`${val}% CTR (${p.payload.clicks} / ${p.payload.impressions})`]}
                           />
                           <Bar dataKey="ctr" radius={[6, 6, 0, 0]}>
                             {activeHyp.variants.map(v => (
-                              <Cell key={v.id} fill={v.id === activeHyp.winnerId ? 'var(--green)' : 'var(--accent)'} />
+                              <Cell key={v.id} fill={v.id === activeHyp.winnerId ? 'var(--accent-2)' : 'var(--accent)'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -499,108 +554,161 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
                 </div>
               )}
 
-              {/* PR Card */}
+              {/* PR Deck Console */}
               {activeHyp.prUrl && (
-                <div style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: '20px 24px',
-                  marginBottom: 32,
+                <div className="hologram-panel panel-pad" style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 20,
+                  borderColor: 'var(--accent)',
                 }}>
-                  <div style={{ fontSize: 24 }}>🔀</div>
+                  <div style={{ fontSize: 28, filter: 'drop-shadow(0 0 10px var(--accent))' }}>🔀</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-                      Pull Request #{activeHyp.prNumber} opened
+                    <div className="neon-glow-text" style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>
+                      Pull Request #{activeHyp.prNumber} ready
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                      Winning variant ready to deploy — {activeHyp.liftPct != null ? `+${activeHyp.liftPct.toFixed(1)}% CTR lift` : ''}
+                    <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
+                      A code patch has been prepared. Click merge to merge the changes directly on the GitHub repository branch.
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <a
                       href={activeHyp.prUrl}
                       target="_blank"
                       rel="noopener noreferrer"
+                      className="button button-ghost"
                       style={{
-                        padding: '8px 16px',
-                        background: 'transparent',
-                        border: '1px solid var(--border)',
-                        borderRadius: 7,
-                        color: 'var(--foreground)',
-                        fontSize: 13,
-                        fontWeight: 500,
-                        textDecoration: 'none',
-                        whiteSpace: 'nowrap',
+                        minHeight: 36,
+                        fontSize: 12,
                       }}
                     >
-                      View on GitHub
+                      Inspect branch
                     </a>
                     {!exp.site.autoMerge && (
                       <button
                         onClick={() => approvePR(activeHyp.id)}
                         disabled={approving === activeHyp.id}
+                        className="button button-accent"
                         style={{
-                          padding: '8px 18px',
-                          background: approving === activeHyp.id ? 'var(--accent-dim)' : 'var(--green)',
-                          border: 'none',
-                          borderRadius: 7,
+                          minHeight: 36,
+                          fontSize: 12,
+                          background: approving === activeHyp.id ? 'var(--accent-dim)' : 'var(--accent-2)',
                           color: '#000',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: approving === activeHyp.id ? 'not-allowed' : 'pointer',
-                          whiteSpace: 'nowrap',
                         }}
                       >
-                        {approving === activeHyp.id ? 'Merging…' : 'Approve & Merge'}
+                        {approving === activeHyp.id ? 'Injecting changes...' : 'Approve & Merge'}
                       </button>
                     )}
                     {exp.site.autoMerge && (
-                      <div style={{ fontSize: 12, color: 'var(--green)', padding: '8px 0', fontWeight: 500 }}>
-                        Auto-merged ✓
+                      <div className="neon-glow-text-lime" style={{ fontSize: 11, color: 'var(--green)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        AUTO-MERGED ✓
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* Variant HTML Preview */}
+              {/* Responsive Device Laboratory */}
               {activeHyp.variants.length >= 2 && (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                    <SectionLabel>Variant Preview</SectionLabel>
-                    <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-                      {(['A', 'B'] as const).map(v => (
-                        <button
-                          key={v}
-                          onClick={() => setPreview(v)}
-                          style={{
-                            padding: '4px 14px',
-                            fontSize: 12,
-                            fontWeight: 600,
-                            background: preview === v ? 'var(--accent)' : 'transparent',
-                            color: preview === v ? '#fff' : 'var(--muted)',
-                            border: 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {v}
-                        </button>
-                      ))}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                    <SectionLabel>Interactive Hologram Viewport</SectionLabel>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      {/* Segmented size buttons */}
+                      <div style={{ display: 'flex', background: 'rgba(5,7,12,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6, overflow: 'hidden', padding: 2 }}>
+                        {(['desktop', 'tablet', 'mobile'] as const).map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setViewport(v)}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              background: viewport === v ? 'var(--accent)' : 'transparent',
+                              color: viewport === v ? '#000' : 'var(--muted)',
+                              border: 'none',
+                              cursor: 'pointer',
+                              borderRadius: 4,
+                              transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+                            }}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Variant A / B selectors */}
+                      <div style={{ display: 'flex', background: 'rgba(5,7,12,0.6)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6, overflow: 'hidden', padding: 2 }}>
+                        {(['A', 'B'] as const).map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setPreview(v)}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: 11,
+                              fontWeight: 800,
+                              background: preview === v ? 'var(--accent-2)' : 'transparent',
+                              color: preview === v ? '#000' : 'var(--muted)',
+                              border: 'none',
+                              cursor: 'pointer',
+                              borderRadius: 4,
+                              transition: 'all 0.3s'
+                            }}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <VariantPreview variant={activeHyp.variants[preview === 'A' ? 0 : 1]} />
+                  
+                  {/* Visual device wrapper */}
+                  <div className="cyber-bezel-wrapper">
+                    <div className={`cyber-bezel-device ${viewport}`}>
+                      <iframe
+                        srcDoc={`<style>body{margin:0;padding:20px;font-family:system-ui,sans-serif;background:#fff;color:#05070c;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%}${activeHyp.variants[preview === 'A' ? 0 : 1].css}</style>${activeHyp.variants[preview === 'A' ? 0 : 1].html}`}
+                        style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                        title={`Preview ${activeHyp.variants[preview === 'A' ? 0 : 1].name}`}
+                        sandbox="allow-scripts"
+                      />
+                    </div>
+                    
+                    {/* Expandable inspector code panel */}
+                    <div style={{ marginTop: 14 }}>
+                      <details className="code-compartment">
+                        <summary style={{ fontSize: 11, color: 'var(--muted)', cursor: 'pointer', padding: '8px 12px', fontWeight: 650, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>INSPECT DOM BINDING</span>
+                          <button
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              await navigator.clipboard.writeText(
+                                `${activeHyp.variants[preview === 'A' ? 0 : 1].css ? `/* CSS */\n${activeHyp.variants[preview === 'A' ? 0 : 1].css}\n\n` : ''}<!-- HTML -->\n${activeHyp.variants[preview === 'A' ? 0 : 1].html}`
+                              );
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="button button-ghost"
+                            style={{ minHeight: 20, padding: '0 6px', fontSize: 9, textTransform: 'uppercase' }}
+                          >
+                            {copied ? 'copied!' : 'copy snippet'}
+                          </button>
+                        </summary>
+                        <pre className="mono" style={{ fontSize: 11, color: 'var(--accent)', padding: '12px', marginTop: 0, overflowX: 'auto', whiteSpace: 'pre-wrap', maxHeight: 220, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          {`${activeHyp.variants[preview === 'A' ? 0 : 1].css ? `/* CSS */\n${activeHyp.variants[preview === 'A' ? 0 : 1].css}\n\n` : ''}<!-- HTML -->\n${activeHyp.variants[preview === 'A' ? 0 : 1].html}`}
+                        </pre>
+                      </details>
+                    </div>
+                  </div>
                 </div>
               )}
             </>
           ) : (
-            <div style={{ color: 'var(--muted)', fontSize: 14, marginTop: 40 }}>
+            <div className="hologram-panel panel-pad" style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: '60px 0' }}>
               {exp.status === 'analyzing'
-                ? 'Analyzing site with Claude Vision + Playwright…'
-                : 'Select a test from the sidebar.'}
+                ? 'Playwright crawlers scanning funnel categories...'
+                : 'Select an active experiment node from the sidebar queue.'}
             </div>
           )}
         </section>
@@ -609,33 +717,18 @@ export default function ExperimentDetail({ params }: { params: Promise<{ id: str
   );
 }
 
-function VariantPreview({ variant }: { variant: Variant }) {
-  if (!variant) return null;
-  return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-      <iframe
-        srcDoc={`<style>body{margin:20px;background:#fff;display:flex;align-items:center;justify-content:center;min-height:100px}${variant.css}</style>${variant.html}`}
-        style={{ width: '100%', height: 200, border: 'none' }}
-        title={`Preview ${variant.name}`}
-        sandbox="allow-scripts"
-      />
-      <details style={{ borderTop: '1px solid var(--border)', padding: '10px 14px' }}>
-        <summary style={{ fontSize: 11, color: 'var(--muted)', cursor: 'pointer' }}>View HTML</summary>
-        <pre style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-          {variant.css ? `/* CSS */\n${variant.css}\n\n/* HTML */\n` : ''}{variant.html}
-        </pre>
-      </details>
-    </div>
-  );
-}
-
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span style={{
-      fontSize: 12,
-      fontWeight: 600,
+    <span className="mono" style={{
+      fontSize: 10,
+      fontWeight: 800,
       color: STATUS_COLOR[status] || 'var(--muted)',
-      textTransform: 'capitalize',
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em',
+      background: 'rgba(255,255,255,0.03)',
+      border: `1px solid ${STATUS_COLOR[status] || 'var(--border)'}`,
+      borderRadius: 4,
+      padding: '2px 6px'
     }}>
       {status}
     </span>
@@ -644,7 +737,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+    <div className="section-label" style={{ fontSize: 10, letterSpacing: '0.08em', fontWeight: 800 }}>
       {children}
     </div>
   );
@@ -653,9 +746,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function ProfileRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 12 }}>
-      <span style={{ color: 'var(--muted)', minWidth: 60 }}>{label}</span>
-      <span style={{ flex: 1 }}>{value}</span>
+    <div style={{ display: 'flex', gap: 8, fontSize: 11, alignItems: 'center' }}>
+      <span style={{ color: 'var(--muted)', minWidth: 60, fontWeight: 550 }}>{label}</span>
+      <span className="mono truncate" style={{ flex: 1, color: 'var(--foreground)' }}>{value}</span>
     </div>
   );
 }
+
