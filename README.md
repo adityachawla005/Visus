@@ -1,151 +1,130 @@
-# Visus — Autonomous CRO Agent
+# Visus
 
-**Give it a URL. Watch your conversion rate climb.**
+Visus is a landing page for an AI tool that helps improve websites.
 
-Visus is a self-running A/B testing engine. Point it at any website, connect a GitHub repo, and it crawls your pages, generates AI-powered hypotheses, runs tests against real traffic, and ships winners as pull requests — then immediately starts the next cycle.
+The idea is simple: Visus looks at how people use a website, finds parts that may be confusing or weak, suggests better versions, tests them, and helps ship the version that performs best.
 
----
-
-## How it works
-
-```
-1. Connect   →  Paste your site URL + GitHub repo
-2. Crawl     →  Visus maps every page and ranks by conversion importance
-3. Hypothesize  →  LLaMA3 generates targeted test ideas per element
-4. Test      →  Serve A/B variants to real visitors, collect click data
-5. Ship      →  Winner hits 95% confidence → PR opened automatically
-6. Repeat    →  Loop restarts — forever
-```
+This repo is currently set up to deploy only the landing page on Vercel. The backend and dashboard are not part of the live deployment.
 
 ---
 
-## Features
+## What It Does
 
-| Feature | Description |
+Visus is built around this flow:
+
+1. A website is connected to Visus.
+2. Visus studies the pages and user behavior.
+3. It finds areas where users may drop off or miss important actions.
+4. It creates ideas for improving the page.
+5. It tests different versions.
+6. The better version can be sent back as a code change.
+
+In short, Visus is like an AI helper for improving website conversions.
+
+---
+
+## Current Version
+
+The deployed version is a landing page only.
+
+It includes:
+
+- A visual product introduction
+- Sections explaining the Visus idea
+- 3D and video-based visuals
+- A responsive design for desktop and mobile
+- A clean static build for Vercel
+
+The live deployment does not include:
+
+- The dashboard
+- The experiment detail pages
+- The backend server
+- Any local database or AI setup
+
+---
+
+## Tech Used
+
+| Part | Technology |
 |---|---|
-| **Autonomous loop** | Runs 24/7 with zero manual input after setup |
-| **AI hypotheses** | Local LLaMA3 (via Ollama) generates targeted UX improvements |
-| **Real traffic testing** | No synthetic users — actual visitors decide the winner |
-| **GitHub PR integration** | Winning variants become reviewable pull requests |
-| **Auto-merge** | Optional: merge winning PRs automatically at 95% confidence |
-| **Funnel mapping** | Crawls all pages, prioritizes highest-conversion-value paths |
-| **Session analytics** | Tracks clicks, scrolls, and interaction events per session |
-| **Variant preview** | Live A/B HTML preview inside the dashboard |
-
----
-
-## Tech Stack
-
-| Layer | Stack |
-|---|---|
-| **Frontend** | Next.js 15, React 19, Tailwind CSS 4, Recharts |
-| **Backend** | Node.js, Express, TypeScript |
-| **Database** | Neon PostgreSQL (serverless) + Prisma ORM |
-| **AI** | LangChain + Ollama (local LLaMA3) |
-| **Crawler** | Playwright |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- [Ollama](https://ollama.ai) running locally with `llama3` pulled
-- A [Neon](https://neon.tech) database (or any Postgres)
-- A GitHub personal access token with `repo` scope
-
-### 1. Clone & install
-
-```bash
-git clone https://github.com/your-username/visus
-cd visus
-
-# Install server deps
-cd server && npm install
-
-# Install client deps
-cd ../client && npm install
-```
-
-### 2. Configure the server
-
-```bash
-cd server
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```env
-DATABASE_URL="postgresql://..."
-GITHUB_TOKEN="ghp_..."
-OLLAMA_BASE_URL="http://localhost:11434"
-PORT=8080
-```
-
-### 3. Run migrations
-
-```bash
-cd server
-npx prisma migrate dev
-```
-
-### 4. Start everything
-
-```bash
-# Terminal 1 — server
-cd server && npm run dev
-
-# Terminal 2 — client
-cd client && npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
----
-
-## Usage
-
-1. Open the dashboard at `/dashboard`
-2. Enter your site URL (must be publicly accessible)
-3. Enter your GitHub repo (`owner/repo`) and personal access token
-4. Click **Start Loop**
-5. Visus will open a tracker PR in your repo — merge it and deploy
-6. Once deployed, real visitor data starts flowing and A/B tests begin automatically
+| Website | Next.js, React |
+| Styling | Tailwind CSS, custom CSS |
+| Visuals | Three.js, React Three Fiber |
+| Hosting | Vercel |
 
 ---
 
 ## Project Structure
 
-```
-visus/
-├── client/                  # Next.js frontend
-│   └── src/app/
-│       ├── page.tsx         # Landing page
-│       ├── dashboard/       # Dashboard (/dashboard)
-│       └── experiment/[id]/ # Experiment detail
+```text
+Visus/
+├── client/                 # The landing page that gets deployed
+│   ├── public/             # Logo, video, and 3D files
+│   └── src/
+│       ├── app/
+│       │   ├── page.tsx    # Main landing page
+│       │   ├── layout.tsx  # Page layout and metadata
+│       │   └── globals.css # Main styling
+│       └── components/     # Visual components used by the page
 │
-└── server/                  # Express backend
-    └── src/
-        ├── routes/          # API endpoints
-        └── ai/              # LangChain agents & analyzers
+└── server/                 # Backend prototype, not deployed right now
 ```
 
 ---
 
-## API Reference
+## Run It Locally
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/experiment/start` | Start a new experiment loop for a site |
-| `GET` | `/experiment` | List all sites and their experiments |
-| `GET` | `/experiment/:id` | Get experiment detail with hypotheses |
-| `GET` | `/experiment/:id/queue` | Get current test queue and progress |
-| `POST` | `/experiment/:id/approve` | Manually approve and merge a winning PR |
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
 
 ---
 
-## License
+## Build It
 
-MIT
+```bash
+cd client
+npm run build
+```
+
+The build should only show:
+
+```text
+/
+/_not-found
+```
+
+That means only the landing page is being deployed.
+
+---
+
+## Deploy on Vercel
+
+Import the GitHub repo into Vercel and use these settings:
+
+| Setting | Value |
+|---|---|
+| Framework Preset | Next.js |
+| Root Directory | `client` |
+| Install Command | `npm install` |
+| Build Command | `npm run build` |
+| Output Directory | Leave default |
+
+Do not choose the `server` folder as the Vercel root.
+
+---
+
+> Visus is an AI tool that helps websites improve themselves. It studies how users behave, finds weak parts of a page, creates better versions, tests them, and helps ship the version that works best.
+
+For the current demo:
+
+> This version is the landing page for the product. It shows the idea, the visual direction, and how the product would work. The backend prototype exists separately, but the live Vercel deployment is focused only on the landing page.
