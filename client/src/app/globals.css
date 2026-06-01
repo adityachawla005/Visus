@@ -3495,6 +3495,7 @@ a { color: inherit; transition: color 0.15s, border-color 0.15s, background 0.15
 
 .mw-get-started {
   justify-self: end;
+  cursor: pointer;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   font-size: 12px;
   font-weight: 700;
