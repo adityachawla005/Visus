@@ -1,10 +1,14 @@
-# Visus(Still Making It)
+# Visus
 
 Visus is a landing page for an AI tool that helps improve websites.
 
 The idea is simple: Visus looks at how people use a website, finds parts that may be confusing or weak, suggests better versions, tests them, and helps ship the version that performs best.
 
 This repo is currently set up to deploy only the landing page on Vercel. The backend and dashboard are not part of the live deployment.
+
+!![](img/1.png)
+
+!![](img/2.png)
 
 ---
 
