@@ -18,7 +18,9 @@ function Chrome({ children }: { children: React.ReactNode }) {
     <div className="dh-shell">
       <header className="dh-topbar">
         <Link href="/dashboard" className="dh-brand">
-          <span className="dh-brand-mark">V</span> Visus
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="dh-brand-mark" src="/logo.png" alt="Visus" />
+          <span>VISUS</span>
         </Link>
         <div className="dh-user">
           <span>{user.name || user.email}</span>

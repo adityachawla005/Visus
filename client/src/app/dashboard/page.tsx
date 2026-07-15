@@ -35,10 +35,6 @@ const STATUS_CLASS: Record<string, string> = {
   cooldown: 'cooldown', failed: 'failed',
 };
 
-function hypIcon(status: string): string {
-  return status === 'completed' ? '✅' : status === 'running' ? '🔄' : '⏳';
-}
-
 export default function DashboardPage() {
   const [sites, setSites] = useState<Site[] | null>(null);
   const [error, setError] = useState('');
@@ -72,7 +68,7 @@ export default function DashboardPage() {
         <div className="dh-stat"><b>{sites.length}</b><span>Connected sites</span></div>
         <div className="dh-stat"><b>{active}</b><span>Active experiments</span></div>
         <div className="dh-stat"><b>{shipped}</b><span>Winners shipped (PRs)</span></div>
-        <div className="dh-stat"><b>{bestLift > 0 ? `+${bestLift.toFixed(1)}%` : '—'}</b><span>Best CTR lift</span></div>
+        <div className="dh-stat dh-stat-accent"><b>{bestLift > 0 ? `+${bestLift.toFixed(1)}%` : '—'}</b><span>Best CTR lift</span></div>
       </div>
 
       {sites.length === 0 ? (
@@ -89,38 +85,45 @@ export default function DashboardPage() {
             const best = hyps.reduce((m, h) => Math.max(m, h.liftPct ?? 0), 0);
 
             return (
-              <section key={site.id} className="dh-card">
+              <section key={site.id} className="dh-card" data-status={status}>
                 <div className="dh-card-head">
                   <a className="dh-card-url" href={site.url} target="_blank" rel="noreferrer">
                     {site.url.replace(/^https?:\/\//, '')}
                   </a>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {exp && <Link href={`/dashboard/experiments/${exp.id}`} className="dh-pr">View →</Link>}
+                    {exp && <Link href={`/dashboard/experiments/${exp.id}`} className="dh-pr">view →</Link>}
                     <span className={`dh-badge ${STATUS_CLASS[status] ?? 'none'}`}>{status}</span>
                   </div>
                 </div>
 
-                <div className="dh-meta">
-                  {site.profile && <span><b>{site.profile.theme}</b> · {site.profile.tone}</span>}
-                  {site.githubRepo && <span>{site.githubRepo}</span>}
-                  <span>tracker {site.trackerInjected ? 'live' : 'pending'}</span>
-                  {exp && <span>cycle {exp.cycleCount}</span>}
-                  {best > 0 && <span className="dh-lift">+{best.toFixed(1)}% best lift</span>}
-                </div>
+                <div className="dh-card-body">
+                  {site.profile?.theme && <p className="dh-card-desc">{site.profile.theme}</p>}
 
-                {hyps.length > 0 && (
-                  <div className="dh-hyps">
-                    {hyps.slice(0, 5).map((h) => (
-                      <div key={h.id} className="dh-hyp">
-                        <span>{hypIcon(h.status)}</span>
-                        <span className="dh-hyp-desc" title={h.description}>{h.description}</span>
-                        {h.liftPct != null && h.liftPct > 0 && <span className="dh-lift">+{h.liftPct.toFixed(1)}%</span>}
-                        {h.prUrl && <a className="dh-pr" href={h.prUrl} target="_blank" rel="noreferrer">PR ↗</a>}
-                      </div>
-                    ))}
-                    {hyps.length > 5 && <div className="dh-meta">+{hyps.length - 5} more hypotheses</div>}
+                  <div className="dh-chips">
+                    {site.githubRepo && <span className="dh-chip">{site.githubRepo}</span>}
+                    {site.profile?.tone && <span className="dh-chip">{site.profile.tone}</span>}
+                    <span className="dh-chip">tracker {site.trackerInjected ? 'live' : 'pending'}</span>
+                    {exp && <span className="dh-chip">cycle {exp.cycleCount}</span>}
+                    {best > 0 && <span className="dh-chip o">+{best.toFixed(1)}% best lift</span>}
                   </div>
-                )}
+
+                  {hyps.length > 0 && (
+                    <div className="dh-hyps">
+                      {hyps.slice(0, 5).map((h, i) => (
+                        <div key={h.id} className="dh-hyp">
+                          <span className="dh-hyp-idx">{String(i + 1).padStart(2, '0')}</span>
+                          <span className="dh-hyp-desc" title={h.description}>{h.description}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            {h.liftPct != null && h.liftPct > 0 && <span className="dh-lift">+{h.liftPct.toFixed(1)}%</span>}
+                            {h.prUrl && <a className="dh-pr" href={h.prUrl} target="_blank" rel="noreferrer">PR ↗</a>}
+                            <span className={`dh-badge ${STATUS_CLASS[h.status] ?? 'none'}`}>{h.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {hyps.length > 5 && <div className="dh-meta" style={{ paddingTop: 12 }}>+{hyps.length - 5} more hypotheses</div>}
+                    </div>
+                  )}
+                </div>
               </section>
             );
           })}

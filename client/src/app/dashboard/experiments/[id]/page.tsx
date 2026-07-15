@@ -25,8 +25,13 @@ interface Detail {
 }
 
 const STATUS_CLASS: Record<string, string> = {
-  running: 'running', analyzing: 'analyzing', completed: 'completed', cooldown: 'cooldown', failed: 'failed',
+  running: 'running', analyzing: 'analyzing', completed: 'completed', cooldown: 'cooldown', failed: 'failed', queued: 'queued',
 };
+
+// CTR arrives as a display string ("11.05%") — pull out the number for the bars.
+function ctrNum(ctr: string): number {
+  return parseFloat(String(ctr).replace(/[^0-9.]/g, '')) || 0;
+}
 
 export default function ExperimentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,7 +87,7 @@ export default function ExperimentDetailPage() {
         </div>
       )}
 
-      <div className="dh-section-label">Hypotheses ({data.hypotheses.length})</div>
+      <div className="dh-section-label">Hypotheses <span>{String(data.hypotheses.length).padStart(2, '0')}</span></div>
 
       {error && <div className="dh-error" style={{ marginBottom: 14 }}>{error}</div>}
 
@@ -102,31 +107,87 @@ export default function ExperimentDetailPage() {
                 <span className={`dh-badge ${STATUS_CLASS[h.status] ?? 'none'}`}>{h.status}</span>
               </div>
 
-              {h.variants.length > 0 && (
-                <div className="dh-ab">
-                  {h.variants.sort((a, b) => a.version - b.version).map((v) => {
-                    const isWinner = h.winnerId === v.id;
-                    return (
-                      <div key={v.id} className={`dh-variant${isWinner ? ' winner' : ''}`}>
-                        <div className="dh-variant-name">
-                          {v.name}{isWinner && <span className="dh-win-tag">★ winner</span>}
-                        </div>
-                        <div className="dh-variant-metrics">
-                          <div><b>{v.ctr}</b><span>CTR</span></div>
-                          <div><b>{v.impressions}</b><span>impressions</span></div>
-                          <div><b>{v.clicks}</b><span>clicks</span></div>
-                        </div>
-                        {v.html && <code title={v.html}>{v.html}</code>}
+              {h.variants.length > 0 ? (() => {
+                const vs = [...h.variants].sort((a, b) => a.version - b.version);
+                const host = data.site.url.replace(/^https?:\/\//, '');
+                const maxCtr = Math.max(...vs.map((v) => ctrNum(v.ctr)), 0.0001);
+                const totalViews = vs.reduce((s, v) => s + v.impressions, 0);
+                const winIdx = vs.findIndex((v) => v.id === h.winnerId);
+                const winLabel = winIdx >= 0 ? String.fromCharCode(65 + winIdx) : null;
+                return (
+                  <div className="dh-term">
+                    <div className="dh-term-bar">
+                      <span className="d r" /><span className="d y" /><span className="d g" />
+                      <span className="title">experiment #{data.id} — live</span>
+                    </div>
+                    <div className="dh-term-body">
+                      <div className="dh-ab">
+                        {vs.map((v, i) => {
+                          const isWinner = h.winnerId === v.id;
+                          const arm = i === 0 ? `Control · ${String.fromCharCode(65 + i)}` : `Challenger · ${String.fromCharCode(65 + i)}`;
+                          return (
+                            <div key={v.id} className={`dh-variant${isWinner ? ' winner' : ''}`}>
+                              <div className="dh-variant-name">
+                                <span>{arm}</span>{isWinner && <span className="dh-win-tag">★ winner</span>}
+                              </div>
+                              <div className="dh-frame">
+                                <div className="dh-frame-bar">
+                                  <span className="fd" /><span className="fd" /><span className="fd" />
+                                  <span className="furl">{host}</span>
+                                </div>
+                                {v.html ? (
+                                  // Render the real variant markup + CSS in a sandboxed, script-free
+                                  // iframe so its styles stay isolated from the dashboard.
+                                  <iframe
+                                    className="dh-render-frame"
+                                    title={`${v.name} preview`}
+                                    sandbox=""
+                                    srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0}body{background:#fff;color:#0a0a0a;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;min-height:120px;padding:26px 18px;display:flex;align-items:center;justify-content:center;text-align:center}${v.css ?? ''}</style></head><body>${v.html}</body></html>`}
+                                  />
+                                ) : (
+                                  <div className="dh-render"><span className="dh-pcta">{v.name}</span></div>
+                                )}
+                              </div>
+                              <div className="dh-variant-metrics">
+                                <div><b>{v.ctr}</b><span>CTR</span></div>
+                                <div><b>{v.impressions}</b><span>views</span></div>
+                                <div><b>{v.clicks}</b><span>clicks</span></div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="dh-readout">
+                        {vs.map((v, i) => {
+                          const isWinner = h.winnerId === v.id;
+                          const w = Math.round((ctrNum(v.ctr) / maxCtr) * 100);
+                          return (
+                            <div key={v.id} className={`dh-bar-row${isWinner ? ' win' : ''}`}>
+                              <span className="lab">{String.fromCharCode(65 + i)}</span>
+                              <div className="dh-track"><div className="fill" style={{ width: `${w}%` }} /></div>
+                              <span className="val">{v.ctr}</span>
+                            </div>
+                          );
+                        })}
+                        <div className="dh-verdict">
+                          {winLabel
+                            ? <>variant {winLabel} winning{h.liftPct != null && h.liftPct > 0 && <> · <b>+{h.liftPct.toFixed(1)}% lift</b></>} · {totalViews.toLocaleString()} views</>
+                            : <>{totalViews.toLocaleString()} views collected · still gathering signal</>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="dh-ghost">variant not generated yet — built when this hypothesis reaches the front of the queue</div>
               )}
 
               <div className="dh-hyp-actions">
                 {h.liftPct != null && h.liftPct > 0 && <span className="dh-lift">+{h.liftPct.toFixed(1)}% CTR lift</span>}
-                {h.prUrl && <a className="dh-pr" href={h.prUrl} target="_blank" rel="noreferrer">View PR ↗</a>}
-                {merged[h.id] && <span className="dh-ok">✓ Merged</span>}
+                {h.prUrl && <a className="dh-pr" href={h.prUrl} target="_blank" rel="noreferrer">view PR ↗</a>}
+                {merged[h.id] && <span className="dh-ok">merged</span>}
+                <span className="dh-spacer" />
                 {canApprove && (
                   <button className="dh-btn dh-btn-gold" disabled={approving === h.id} onClick={() => approve(h.id)}>
                     {approving === h.id ? 'Merging…' : 'Approve & merge winner'}
