@@ -1,16 +1,7 @@
 import { prisma } from '../prisma';
 import { storeOutcome } from './memory';
 import { SiteProfile } from './analyzer';
-
-const MIN_IMPRESSIONS_PER_VARIANT = 500;
-const Z_THRESHOLD = 1.645; // 95% one-tailed confidence
-
-function zScore(clicksB: number, impressionsB: number, rateA: number): number {
-  if (impressionsB === 0 || rateA <= 0) return 0;
-  const rateB = clicksB / impressionsB;
-  const se = Math.sqrt(rateA * (1 - rateA) / impressionsB);
-  return se === 0 ? 0 : (rateB - rateA) / se;
-}
+import { evaluateAB, ABResult, MIN_IMPRESSIONS_PER_VARIANT } from './stats';
 
 export interface WinnerResult {
   winnerId: number;
@@ -19,6 +10,9 @@ export interface WinnerResult {
   ctrB: number;
   ctrImprovement: number;
   significant: boolean;
+  /** True only when the challenger (B) significantly beat the control — safe to ship. */
+  shipChallenger: boolean;
+  confidencePct: number;
 }
 
 export async function evaluateHypothesis(
@@ -35,42 +29,61 @@ export async function evaluateHypothesis(
 
   const [a, b] = hyp.variants;
 
-  // Not enough data yet
+  // Not enough data yet — the proper gate lives in stats.evaluateAB, but we
+  // short-circuit here to avoid marking the hypothesis completed prematurely.
   if (a.impressions < MIN_IMPRESSIONS_PER_VARIANT || b.impressions < MIN_IMPRESSIONS_PER_VARIANT) {
     return null;
   }
 
-  const rateA = a.clicks / a.impressions;
-  const rateB = b.clicks / b.impressions;
-  const z = zScore(b.clicks, b.impressions, rateA);
-  const significant = Math.abs(z) >= Z_THRESHOLD;
+  const result: ABResult = evaluateAB(a.clicks, a.impressions, b.clicks, b.impressions);
 
-  // Winner is always determined by raw CTR comparison, never by z sign (which can be negative when A beats B)
-  const winner = rateB >= rateA ? b : a;
-  const loser  = rateB >= rateA ? a : b;
-  const winnerRate = Math.max(rateA, rateB);
-  const ctrImprovement = rateA > 0 ? ((winnerRate - rateA) / rateA) * 100 : 0;
+  // True winner (higher CTR) is recorded for learning even when not significant.
+  // 'A' wins ties so we never ship a challenger on a coin-flip.
+  const winner = result.winner === 'B' ? b : a;
+  const loser  = result.winner === 'B' ? a : b;
 
-  console.log(`Hypothesis ${hypothesisId}: A=${(rateA * 100).toFixed(2)}% B=${(rateB * 100).toFixed(2)}% z=${z.toFixed(2)} significant=${significant}`);
+  console.log(
+    `Hypothesis ${hypothesisId}: A=${(result.rateA * 100).toFixed(2)}% B=${(result.rateB * 100).toFixed(2)}% ` +
+    `z=${result.z.toFixed(2)} p=${result.pValue.toFixed(4)} significant=${result.significant} ship=${result.shipChallenger}`,
+  );
 
-  // Store outcome in ChromaDB regardless of significance
+  // Store outcome in ChromaDB regardless of significance, but only credit lift
+  // when the result is statistically significant (otherwise it's noise).
   await storeOutcome({
     id: `hyp-${hypothesisId}-${Date.now()}`,
     url: profile.url,
     siteType: `${profile.theme}, ${profile.tone}`,
     hypothesis: hyp.description,
     elementType: hyp.elementSelector,
-    change: `${winner.name} won over ${loser.name} with CTR ${(winnerRate * 100).toFixed(2)}%`,
-    ctrImprovement: significant ? ctrImprovement : 0,
+    change: result.significant
+      ? `${winner.name} won over ${loser.name} (CTR ${(Math.max(result.rateA, result.rateB) * 100).toFixed(2)}%, ${result.confidencePct.toFixed(1)}% confidence)`
+      : `Inconclusive — no significant difference between ${a.name} and ${b.name}`,
+    ctrImprovement: result.significant ? result.liftPct : 0,
     impressions: a.impressions + b.impressions,
   });
 
+  // Record the winner (true higher-CTR variant) and the measured lift.
+  // liftPct is only stored when significant so downstream pause/learn logic
+  // isn't driven by noise.
   await prisma.hypothesis.update({
     where: { id: hypothesisId },
-    data: { status: 'completed', winnerId: winner.id },
+    data: {
+      status: 'completed',
+      winnerId: winner.id,
+      liftPct: result.significant ? result.liftPct : 0,
+    },
   });
 
-  return { winnerId: winner.id, winnerName: winner.name, ctrA: rateA, ctrB: rateB, ctrImprovement, significant };
+  return {
+    winnerId: winner.id,
+    winnerName: winner.name,
+    ctrA: result.rateA,
+    ctrB: result.rateB,
+    ctrImprovement: result.liftPct,
+    significant: result.significant,
+    shipChallenger: result.shipChallenger,
+    confidencePct: result.confidencePct,
+  };
 }
 
 export async function checkAndEvaluateExperiment(experimentId: number): Promise<boolean> {
@@ -97,7 +110,7 @@ export async function checkAndEvaluateExperiment(experimentId: number): Promise<
     copy:           p?.copy ?? '',
     weaknesses:     (p?.weaknesses as string[]) ?? [],
     screenshotBase64: p?.screenshotB64 ?? '',
-    selectorMap:      (p?.selectorMap as Record<string, { cssSelector: string; tagName: string; textContent: string; position: number }>) ?? {},
+    selectorMap:      (p?.selectorMap as unknown as SiteProfile['selectorMap']) ?? {},
     discoveredPages:  [],
   };
 

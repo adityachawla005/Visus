@@ -1,9 +1,9 @@
-import { ChatOllama } from '@langchain/ollama';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
+import { makeOllama } from './llm';
 
-const model = new ChatOllama({ model: 'llama3', baseUrl: 'http://localhost:11434' });
+const model = makeOllama();
 
 const prompt = PromptTemplate.fromTemplate(`
 You are a professional UI/UX designer.

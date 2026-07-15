@@ -1,7 +1,13 @@
 import express, { Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { verifyVariantToken, rateLimit, clientIp } from '../security';
 
 const router = express.Router();
+
+// Max counter increments accepted per (IP, variant) per minute. A real visitor
+// sends one (deduped client-side), so this only ever trips abuse.
+const RATE_MAX = 10;
+const RATE_WINDOW_MS = 60_000;
 
 // 📊 Get metrics for a specific element
 router.get('/:elementId/metrics', async (req: Request, res: Response): Promise<void> => {
@@ -74,16 +80,31 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 });
 
 
-// 👁️ Add impression to variant
+// Shared gate: valid signed token for this variant + per-(IP, variant) rate limit.
+function guardCounter(metric: 'imp' | 'clk', req: Request, res: Response): number | null {
+  const id = parseInt(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: 'Invalid variant id' }); return null; }
+
+  if (!verifyVariantToken(id, req.query.t)) {
+    res.status(401).json({ error: 'Invalid or missing token' });
+    return null;
+  }
+
+  if (!rateLimit(`${metric}:${clientIp(req)}:${id}`, RATE_MAX, RATE_WINDOW_MS)) {
+    res.status(429).json({ error: 'Rate limit exceeded' });
+    return null;
+  }
+
+  return id;
+}
+
+// 👁️ Add impression to variant — requires a valid signed token (?t=…)
 router.post('/:id/impression', async (req: Request, res: Response): Promise<void> => {
-  const { id } = req.params;
+  const id = guardCounter('imp', req, res);
+  if (id === null) return;
 
   try {
-    await prisma.variant.update({
-      where: { id: parseInt(id) },
-      data: { impressions: { increment: 1 } },
-    });
-
+    await prisma.variant.update({ where: { id }, data: { impressions: { increment: 1 } } });
     res.status(204).send();
   } catch (err) {
     console.error('Error updating impressions:', err);
@@ -91,16 +112,13 @@ router.post('/:id/impression', async (req: Request, res: Response): Promise<void
   }
 });
 
-// 🖱️ Add click to variant
+// 🖱️ Add click to variant — requires a valid signed token (?t=…)
 router.post('/:id/click', async (req: Request, res: Response): Promise<void> => {
-  const { id } = req.params;
+  const id = guardCounter('clk', req, res);
+  if (id === null) return;
 
   try {
-    await prisma.variant.update({
-      where: { id: parseInt(id) },
-      data: { clicks: { increment: 1 } },
-    });
-
+    await prisma.variant.update({ where: { id }, data: { clicks: { increment: 1 } } });
     res.status(204).send();
   } catch (err) {
     console.error('Error updating clicks:', err);

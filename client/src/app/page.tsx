@@ -138,9 +138,10 @@ export default function Landing() {
           <a href="#works"    className="mw-nav-link">Experiments</a>
           <a href="#services" className="mw-nav-link">Telemetry</a>
           <a href="#about"    className="mw-nav-link">Manifesto</a>
+          <Link href="/login" className="mw-nav-link">Sign in</Link>
         </nav>
 
-        <button type="button" className="mw-get-started">Get started</button>
+        <Link href="/signup" className="mw-get-started">Get started</Link>
       </header>
 
       {/* ══════════════════════════════════════════

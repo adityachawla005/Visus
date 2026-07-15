@@ -1,4 +1,5 @@
 import { ChromaClient, EmbeddingFunction } from 'chromadb';
+import { OLLAMA_BASE_URL, OLLAMA_EMBED_MODEL } from './llm';
 
 export interface ExperimentOutcome {
   id: string;
@@ -15,10 +16,10 @@ class OllamaEmbeddingFunction implements EmbeddingFunction {
   async generate(texts: string[]): Promise<number[][]> {
     return Promise.all(
       texts.map(async (text) => {
-        const res = await fetch('http://localhost:11434/api/embeddings', {
+        const res = await fetch(`${OLLAMA_BASE_URL}/api/embeddings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+          body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, prompt: text }),
         });
         if (!res.ok) throw new Error(`Ollama embedding error: ${res.status}`);
         const data = await res.json() as { embedding: number[] };
@@ -33,7 +34,14 @@ let chromaClient: ChromaClient | null = null;
 
 async function getCollection() {
   if (!chromaClient) {
-    chromaClient = new ChromaClient({ path: process.env.CHROMA_URL || 'http://localhost:8000' });
+    // Default to 8001 to avoid colliding with the API server's default port (8000).
+    // Parse the URL into host/port/ssl (the `path` option is deprecated).
+    const url = new URL(process.env.CHROMA_URL || 'http://localhost:8001');
+    chromaClient = new ChromaClient({
+      host: url.hostname,
+      port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80),
+      ssl:  url.protocol === 'https:',
+    });
   }
   return chromaClient.getOrCreateCollection({
     name: 'experiment_outcomes',

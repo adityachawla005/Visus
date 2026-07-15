@@ -2,13 +2,24 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../prisma';
 import { startExperimentCycle } from '../ai/loop';
 import { isPRMerged } from '../ai/patcher';
+import { encryptSecret, decryptSecret } from '../crypto';
 import { Octokit } from '@octokit/rest';
 
 const router = Router();
 
+// Is this experiment owned by the requesting user? (used to 404 cross-tenant access)
+async function ownsExperiment(experimentId: number, userId: string): Promise<boolean> {
+  const exp = await prisma.experiment.findUnique({
+    where: { id: experimentId },
+    select: { site: { select: { ownerId: true } } },
+  });
+  return !!exp && exp.site.ownerId === userId;
+}
+
 // POST /experiment/start
 router.post('/start', async (req: Request, res: Response): Promise<void> => {
   const { url, githubRepo, githubToken, autoMerge } = req.body;
+  const userId = req.user!.id;
 
   if (!url || !url.startsWith('http')) {
     res.status(400).json({ error: 'Valid URL required' });
@@ -34,18 +45,27 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
+    // A site URL is globally unique; don't let one account hijack another's site.
+    const existing = await prisma.site.findUnique({ where: { url }, select: { ownerId: true } });
+    if (existing?.ownerId && existing.ownerId !== userId) {
+      res.status(403).json({ error: 'This site is already connected by another account' });
+      return;
+    }
+
     // Upsert site so the same URL is never duplicated
     const site = await prisma.site.upsert({
       where: { url },
       create: {
         url,
+        ownerId:     userId,
         githubRepo:  githubRepo  || null,
-        githubToken: githubToken || null,
+        githubToken: githubToken ? encryptSecret(githubToken) : null,
         autoMerge:   autoMerge   ?? false,
       },
       update: {
+        ownerId:     userId, // claim ownership of a previously unowned site
         ...(githubRepo  && { githubRepo }),
-        ...(githubToken && { githubToken }),
+        ...(githubToken && { githubToken: encryptSecret(githubToken) }),
         ...(autoMerge !== undefined && { autoMerge }),
       },
     });
@@ -74,10 +94,12 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
 });
 
 // GET /experiment — list all sites + latest experiment per site
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const sites = await prisma.site.findMany({
+      where: { ownerId: req.user!.id }, // only the caller's sites
       orderBy: { createdAt: 'desc' },
+      omit: { githubToken: true }, // never expose the GitHub PAT to the dashboard
       include: {
         profile: { select: { theme: true, tone: true, weaknesses: true } },
         experiments: {
@@ -104,7 +126,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
     const experiment = await prisma.experiment.findUnique({
       where: { id },
       include: {
-        site: { include: { profile: true, discoveredPages: { orderBy: { importance: 'desc' } } } },
+        site: { omit: { githubToken: true }, include: { profile: true, discoveredPages: { orderBy: { importance: 'desc' } } } },
         hypotheses: {
           orderBy: { id: 'asc' },
           include: {
@@ -117,6 +139,7 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
     });
 
     if (!experiment) { res.status(404).json({ error: 'Not found' }); return; }
+    if (experiment.site.ownerId !== req.user!.id) { res.status(404).json({ error: 'Not found' }); return; }
 
     const enriched = {
       ...experiment,
@@ -147,6 +170,8 @@ router.get('/:id/queue', async (req: Request, res: Response): Promise<void> => {
   if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
 
   try {
+    if (!(await ownsExperiment(id, req.user!.id))) { res.status(404).json({ error: 'Not found' }); return; }
+
     const hypotheses = await prisma.hypothesis.findMany({
       where: { experimentId: id },
       orderBy: { id: 'asc' },
@@ -197,6 +222,8 @@ router.post('/:id/approve', async (req: Request, res: Response): Promise<void> =
   if (isNaN(experimentId)) { res.status(400).json({ error: 'Invalid id' }); return; }
 
   try {
+    if (!(await ownsExperiment(experimentId, req.user!.id))) { res.status(404).json({ error: 'Not found' }); return; }
+
     const hyp = await prisma.hypothesis.findUnique({
       where: { id: hypothesisId },
       include: { experiment: { include: { site: true } } },
@@ -208,7 +235,7 @@ router.post('/:id/approve', async (req: Request, res: Response): Promise<void> =
     }
 
     const [owner, repo] = hyp.experiment.site.githubRepo.split('/');
-    const octokit = new Octokit({ auth: hyp.experiment.site.githubToken });
+    const octokit = new Octokit({ auth: decryptSecret(hyp.experiment.site.githubToken) ?? undefined });
 
     await octokit.rest.pulls.merge({
       owner, repo,
@@ -228,11 +255,15 @@ router.patch('/site/:siteId/settings', async (req: Request, res: Response): Prom
   const { githubRepo, githubToken, autoMerge } = req.body;
 
   try {
+    const owned = await prisma.site.findUnique({ where: { id: siteId }, select: { ownerId: true } });
+    if (!owned || owned.ownerId !== req.user!.id) { res.status(404).json({ error: 'Not found' }); return; }
+
     const site = await prisma.site.update({
       where: { id: siteId },
+      omit: { githubToken: true },
       data: {
         ...(githubRepo  !== undefined && { githubRepo }),
-        ...(githubToken !== undefined && { githubToken }),
+        ...(githubToken !== undefined && { githubToken: encryptSecret(githubToken) }),
         ...(autoMerge   !== undefined && { autoMerge }),
       },
     });

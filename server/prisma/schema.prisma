@@ -7,12 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  sites        Site[]
+}
+
 model Site {
   id              String           @id @default(cuid())
   url             String           @unique
+  ownerId         String?
+  owner           User?            @relation(fields: [ownerId], references: [id])
   githubRepo      String?
   githubToken     String?
   autoMerge       Boolean          @default(false)
+  ingestMode      String           @default("auto") // auto | crawl | ast
   trackerPrUrl    String?
   trackerPrNumber Int?
   trackerInjected Boolean          @default(false)
@@ -37,6 +49,7 @@ model SiteProfile {
   copy           String   @default("")
   weaknesses     Json     @default("[]")
   selectorMap    Json     @default("{}")
+  componentMap   Json     @default("{}") // trackId → source-location (AST ingest); empty for crawl-only sites
   screenshotB64  String?
   analyzedAt     DateTime @default(now())
 }
@@ -61,6 +74,7 @@ model Hypothesis {
   elementSelector String
   rationale       String
   pagePath        String     @default("/")
+  pageUrl         String?    // full URL of the page this hypothesis targets (primary = site.url)
   status          String     @default("queued") // queued | running | completed
   winnerId        Int?
   prUrl           String?
@@ -116,7 +130,10 @@ model PageElement {
 model Session {
   id         Int      @id @default(autoincrement())
   session_id String
+  siteId     String?
   page       String
   events     Json
   createdAt  DateTime @default(now())
+
+  @@index([siteId, page])
 }

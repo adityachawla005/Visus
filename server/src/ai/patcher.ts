@@ -1,4 +1,6 @@
 import { Octokit } from '@octokit/rest';
+import { patchComponentAST } from './ast-patcher';
+import { ComponentSignature } from './ast-utils';
 
 export interface PRResult {
   prUrl: string;
@@ -19,7 +21,10 @@ export interface PROptions {
   ctrB: number;
   impressionsA: number;
   impressionsB: number;
+  confidencePct: number;
   autoMerge: boolean;
+  /** When present, patch the real source node via AST before trying the regex fallback. */
+  astTarget?: { filePath: string; signature: ComponentSignature };
 }
 
 export async function createWinnerPR(options: PROptions): Promise<PRResult | null> {
@@ -40,13 +45,42 @@ export async function createWinnerPR(options: PROptions): Promise<PRResult | nul
 
     const branchName = `visus/test-${options.hypothesisId}`;
 
-    await octokit.rest.git.createRef({
-      owner, repo: repoName,
-      ref: `refs/heads/${branchName}`,
-      sha: baseSha,
-    });
+    // If a PR for this branch already exists (a previous attempt that succeeded
+    // at PR creation), reuse it rather than erroring out every poll cycle.
+    const existingPRs = await octokit.rest.pulls.list({
+      owner, repo: repoName, state: 'open', head: `${owner}:${branchName}`,
+    }).catch(() => ({ data: [] as Array<{ html_url: string; number: number }> }));
+    if (existingPRs.data.length > 0) {
+      const pr = existingPRs.data[0];
+      return { prUrl: pr.html_url, prNumber: pr.number, patched: true };
+    }
 
-    const found = await findAndPatchElement(octokit, owner, repoName, branchName, options);
+    // Create the branch, tolerating "already exists" (422) from a prior partial run.
+    try {
+      await octokit.rest.git.createRef({
+        owner, repo: repoName,
+        ref: `refs/heads/${branchName}`,
+        sha: baseSha,
+      });
+    } catch (refErr: any) {
+      if (refErr?.status !== 422) throw refErr; // 422 = ref exists — reuse it
+    }
+
+    // Prefer a real AST source diff when ingestion mapped this element to a
+    // source node; fall back to the regex patcher, then to a results doc.
+    let found = false;
+    if (options.astTarget) {
+      found = await patchComponentAST({
+        octokit, owner, repo: repoName, branch: branchName,
+        filePath:  options.astTarget.filePath,
+        signature: options.astTarget.signature,
+        winnerHtml: options.winnerHtml,
+        description: options.description,
+      });
+    }
+    if (!found) {
+      found = await findAndPatchElement(octokit, owner, repoName, branchName, options);
+    }
 
     if (!found) {
       // Fallback: write a results doc with the winning snippet
@@ -175,7 +209,7 @@ function buildPRBody(options: PROptions, patched: boolean | null): string {
     `| Control (A) | ${options.impressionsA} | ${ctrA}% |`,
     `| Challenger (B) | ${options.impressionsB} | ${ctrB}% |`,
     ``,
-    `**Lift:** +${options.liftPct.toFixed(1)}% · **Confidence:** ≥95%`,
+    `**Lift:** +${options.liftPct.toFixed(1)}% · **Confidence:** ${options.confidencePct.toFixed(1)}%`,
     ``,
     patched
       ? `✅ Source file patched directly.`

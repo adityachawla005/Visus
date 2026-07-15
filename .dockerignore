@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/.next
+**/.chroma-data
+**/*.log
+**/.env
+.git
+client/public/output.mp4
+client/public/model.glb

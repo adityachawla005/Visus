@@ -1,8 +1,8 @@
-import { ChatOllama } from '@langchain/ollama';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { SiteProfile, SelectorEntry } from './analyzer';
 import { retrieveSimilar } from './memory';
+import { makeOllama, extractJson, withRetry } from './llm';
 
 export interface Hypothesis {
   description: string;
@@ -12,7 +12,7 @@ export interface Hypothesis {
   pagePath: string;
 }
 
-const model = new ChatOllama({ model: 'llama3', baseUrl: 'http://localhost:11434' });
+const model = makeOllama();
 
 const prompt = PromptTemplate.fromTemplate(`
 You are a conversion rate optimization expert.
@@ -29,10 +29,14 @@ Site profile:
 Tracked elements available for A/B testing (use these exact IDs):
 {trackedElements}
 
+Observed user behavior on this page (real telemetry — prioritise fixing these):
+{behaviorSignals}
+
 Past experiments on similar sites:
 {pastContext}
 
 Generate exactly 3 A/B test hypotheses ranked by expected conversion impact.
+Where the behavior data points to a specific weak element, target it directly.
 IMPORTANT: "elementSelector" must be one of the trackIds listed above (e.g. "cta-button-0").
 Return ONLY a JSON array (no markdown, no explanation):
 [
@@ -50,6 +54,7 @@ const chain = prompt.pipe(model).pipe(new StringOutputParser());
 export async function generateHypotheses(
   profile: SiteProfile,
   pageOverride?: { path: string; selectorMap: Record<string, SelectorEntry> },
+  behaviorSignals?: string,
 ): Promise<Hypothesis[]> {
   const selectorMap = pageOverride?.selectorMap ?? profile.selectorMap;
   const pagePath    = pageOverride?.path ?? '/';
@@ -66,24 +71,28 @@ export async function generateHypotheses(
       `  ${id}: <${e.tagName}> "${e.textContent.slice(0, 60)}"`)
     .join('\n') || '  (no tracked elements found)';
 
-  const raw = await chain.invoke({
-    theme:          profile.theme,
-    tone:           profile.tone,
-    layoutPattern:  profile.layoutPattern,
-    targetAudience: profile.targetAudience,
-    conversionGoal: profile.conversionGoal,
-    copy:           profile.copy,
-    weaknesses:     profile.weaknesses.join('; '),
-    trackedElements,
-    pastContext,
-  });
-
-  const cleaned = raw.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
-
   const knownIds = Object.keys(selectorMap);
 
   try {
-    const parsed = JSON.parse(cleaned) as Omit<Hypothesis, 'pagePath'>[];
+    const raw = await withRetry(
+      () => chain.invoke({
+        behaviorSignals: behaviorSignals && behaviorSignals.trim()
+          ? behaviorSignals
+          : 'No behavior data captured yet — reason from the screenshot, copy, and first principles.',
+        theme:          profile.theme,
+        tone:           profile.tone,
+        layoutPattern:  profile.layoutPattern,
+        targetAudience: profile.targetAudience,
+        conversionGoal: profile.conversionGoal,
+        copy:           profile.copy,
+        weaknesses:     profile.weaknesses.join('; '),
+        trackedElements,
+        pastContext,
+      }),
+      { label: 'hypothesis generation' },
+    );
+
+    const parsed = extractJson<Omit<Hypothesis, 'pagePath'>[]>(raw);
     return parsed.map(h => ({
       ...h,
       pagePath,

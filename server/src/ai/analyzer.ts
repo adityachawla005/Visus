@@ -1,12 +1,15 @@
 import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { extractJson, withRetry } from './llm';
 
 export interface SelectorEntry {
   cssSelector: string;
   tagName: string;
   textContent: string;
   position: number;
+  /** Real captured outer HTML of the element (capped) — used to seed variant generation. */
+  outerHTML?: string;
 }
 
 export interface SiteProfile {
@@ -26,7 +29,12 @@ export interface SiteProfile {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const gemini = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+const gemini = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+// Cap stored outerHTML so the selectorMap JSON stays small but variant
+// generation still sees the real markup structure.
+const MAX_OUTER_HTML = 600;
 
 // ── Page importance scoring ────────────────────────────────────────────────────
 
@@ -83,8 +91,8 @@ async function extractSiteContent(url: string) {
     await page.waitForTimeout(2000);
 
     // Auto-tag tracked elements and build the selector map
-    const selectorMap: Record<string, SelectorEntry> = await page.evaluate((targets) => {
-      const map: Record<string, { cssSelector: string; tagName: string; textContent: string; position: number }> = {};
+    const selectorMap: Record<string, SelectorEntry> = await page.evaluate(({ targets, maxOuter }) => {
+      const map: Record<string, { cssSelector: string; tagName: string; textContent: string; position: number; outerHTML: string }> = {};
 
       targets.forEach(({ selector, track }: { selector: string; track: string }) => {
         document.querySelectorAll(selector).forEach((el, i) => {
@@ -106,12 +114,13 @@ async function extractSiteContent(url: string) {
             tagName:     tag,
             textContent: (el.textContent ?? '').trim().slice(0, 120),
             position:    i,
+            outerHTML:   (el.outerHTML ?? '').slice(0, maxOuter),
           };
         });
       });
 
       return map;
-    }, TRACK_TARGETS);
+    }, { targets: TRACK_TARGETS, maxOuter: MAX_OUTER_HTML });
 
     // Screenshot after tagging so LLM sees real structure
     const buffer = await page.screenshot({ type: 'jpeg', quality: 70 });
@@ -178,8 +187,8 @@ export async function crawlPageElements(
     await page.goto(url, { waitUntil: 'load', timeout: 30000 });
     await page.waitForTimeout(1500);
 
-    const result = await page.evaluate((targets) => {
-      const map: Record<string, { cssSelector: string; tagName: string; textContent: string; position: number }> = {};
+    const result = await page.evaluate(({ targets, maxOuter }) => {
+      const map: Record<string, { cssSelector: string; tagName: string; textContent: string; position: number; outerHTML: string }> = {};
       targets.forEach(({ selector, track }: { selector: string; track: string }) => {
         document.querySelectorAll(selector).forEach((el, i) => {
           const trackId = `${track}-${i}`;
@@ -194,11 +203,12 @@ export async function crawlPageElements(
             tagName:     tag,
             textContent: (el.textContent ?? '').trim().slice(0, 120),
             position:    i,
+            outerHTML:   (el.outerHTML ?? '').slice(0, maxOuter),
           };
         });
       });
       return { map, title: document.title };
-    }, TRACK_TARGETS);
+    }, { targets: TRACK_TARGETS, maxOuter: MAX_OUTER_HTML });
 
     return { title: result.title, selectorMap: result.map };
   } finally {
@@ -242,16 +252,17 @@ Return ONLY valid JSON, no markdown, no explanation:
   let analysisFields: Omit<SiteProfile, 'url' | 'screenshotBase64' | 'selectorMap' | 'discoveredPages'>;
 
   try {
-    const result = await gemini.generateContent([
-      { inlineData: { data: screenshotBase64, mimeType: 'image/jpeg' } },
-      { text: prompt },
-    ]);
+    const raw = await withRetry(async () => {
+      const result = await gemini.generateContent([
+        { inlineData: { data: screenshotBase64, mimeType: 'image/jpeg' } },
+        { text: prompt },
+      ]);
+      return result.response.text();
+    }, { label: `Gemini analyze ${url}` });
 
-    const raw     = result.response.text();
-    const cleaned = raw.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
-    analysisFields = JSON.parse(cleaned);
+    analysisFields = extractJson(raw);
   } catch (err) {
-    console.warn('[Analyzer] Claude failed, using fallback:', (err as Error).message);
+    console.warn(`[Analyzer] Gemini (${GEMINI_MODEL}) failed, using fallback:`, (err as Error).message);
     analysisFields = {
       theme:          title || 'Unknown',
       tone:           'professional',

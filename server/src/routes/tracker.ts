@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { prisma } from '../prisma';
+import { signVariantToken } from '../security';
 
 const router = Router();
 
@@ -45,12 +46,16 @@ router.get('/:siteId', async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    // Build { trackId: { A: variant, B: variant } }
+    // Build { trackId: { A: variant, B: variant } }, attaching a signed token to
+    // each variant so the impression/click endpoints can verify it was served.
+    const withToken = <T extends { id: number }>(v: T | null) =>
+      v ? { ...v, token: signVariantToken(v.id) } : null;
+
     const variants: Record<string, { A: object | null; B: object | null }> = {};
     for (const hyp of hypotheses) {
       const a = hyp.variants.find(v => v.version === 1) ?? null;
       const b = hyp.variants.find(v => v.version === 2) ?? null;
-      variants[hyp.elementSelector] = { A: a, B: b };
+      variants[hyp.elementSelector] = { A: withToken(a), B: withToken(b) };
     }
 
     res.json({ siteId, pagePath, selectorMap, variants });

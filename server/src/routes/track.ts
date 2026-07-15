@@ -7,8 +7,9 @@ const router = express.Router();
 
 const sessionSchema = z.object({
   session_id: z.string().min(1, 'session_id is required'),
+  site_id: z.string().optional(),
   page: z.string().min(1, 'page is required'),
-  events: z.array(z.any()), 
+  events: z.array(z.any()),
 });
 
 
@@ -24,9 +25,9 @@ router.post('/', async (req, res): Promise<void> => {
       return;
     }
 
-    const { session_id, page, events } = parsed.data;
+    const { session_id, site_id, page, events } = parsed.data;
     const newSession = await prisma.session.create({
-      data: { session_id, page, events },
+      data: { session_id, siteId: site_id ?? null, page, events },
     });
 
     res.status(201).json(newSession);
