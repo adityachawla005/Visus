@@ -6,9 +6,9 @@ The idea is simple: Visus looks at how people use a website, finds parts that ma
 
 This repo is currently set up to deploy only the landing page on Vercel. The backend and dashboard are not part of the live deployment.
 
-!![](img/1.png)
+![](img/1.png)
 
-!![](img/2.png)
+![](img/2.png)
 
 ---
 
