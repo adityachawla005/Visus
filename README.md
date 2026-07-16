@@ -1,134 +1,101 @@
-# Visus
+<div align="center">
 
-Visus is a landing page for an AI tool that helps improve websites.
+# VISUS
 
-The idea is simple: Visus looks at how people use a website, finds parts that may be confusing or weak, suggests better versions, tests them, and helps ship the version that performs best.
+### Observe. Optimize. Ship the diff.
 
-This repo is currently set up to deploy only the landing page on Vercel. The backend and dashboard are not part of the live deployment.
+**An autonomous agent that reads your landing page, tests real variants against live traffic, and ships the winner as a GitHub pull request — with no human in the loop until the merge.**
 
-![](img/1.png)
+[Live →](https://visus-zeta.vercel.app) &nbsp;·&nbsp; Next.js 15 · LangGraph · Playwright · Gemini · ChromaDB · PostgreSQL
 
-![](img/2.png)
-
----
-
-## What It Does
-
-Visus is built around this flow:
-
-1. A website is connected to Visus.
-2. Visus studies the pages and user behavior.
-3. It finds areas where users may drop off or miss important actions.
-4. It creates ideas for improving the page.
-5. It tests different versions.
-6. The better version can be sent back as a code change.
-
-In short, Visus is like an AI helper for improving website conversions.
+</div>
 
 ---
 
-## Current Version
+## The problem
 
-The deployed version is a landing page only.
+Conversion optimization is a manual loop that barely deserves the name "loop." Someone guesses at a UI change, a developer hand-codes the variant, everyone waits two weeks, someone eyeballs the numbers and declares a winner — usually far too early — and then a developer re-implements that winner by hand, often introducing a regression on the way in.
 
-It includes:
+Every step is a human bottleneck, and the one step that matters most — *deciding whether a variant actually won* — is the one done worst.
 
-- A visual product introduction
-- Sections explaining the Visus idea
-- 3D and video-based visuals
-- A responsive design for desktop and mobile
-- A clean static build for Vercel
+## What Visus does
 
-The live deployment does not include:
+Point it at a URL and a repo. From there it runs the entire cycle on its own:
 
-- The dashboard
-- The experiment detail pages
-- The backend server
-- Any local database or AI setup
+**Scan** → Playwright loads the page and captures the DOM plus a screenshot.
+**Analyze** → a vision model (Gemini) inspects the render for conversion problems: buried CTAs, weak hierarchy, friction in forms.
+**Hypothesize** → findings flow through a ChromaDB RAG pipeline that retrieves prior winning patterns, so generated A/B variants are grounded in what has actually worked.
+**Test** → traffic is split by deterministic client-side hashing of the visitor ID, so a returning user always sees the same arm and the sample stays clean.
+**Ship** → the winner is patched back into the JSX source and opened as a pull request for a human to review and merge.
 
----
+The whole cycle typically closes in under two minutes.
 
-## Tech Used
+## The parts that aren't the LLM
 
-| Part | Technology |
-|---|---|
-| Website | Next.js, React |
-| Styling | Tailwind CSS, custom CSS |
-| Visuals | Three.js, React Three Fiber |
-| Hosting | Vercel |
+The interesting engineering isn't the model call — it's everything that keeps the agent honest.
 
----
+**It refuses to ship garbage.** A variant can only win after clearing a two-proportion z-test: 95% confidence, a minimum sample per arm, and a real lift threshold. If it can't clear the bar, it dies. The agent is allowed to fail.
 
-## Project Structure
+**It patches real source code.** The agent sees rendered DOM, but the source is JSX. Visus maps DOM nodes back to their JSX origins via `ts-morph` AST traversal with a three-tier fallback. Patches are idempotent — re-running on an already-patched file is a no-op — so the PR is always a clean diff.
 
-```text
-Visus/
-├── client/                 # The landing page that gets deployed
-│   ├── public/             # Logo, video, and 3D files
-│   └── src/
-│       ├── app/
-│       │   ├── page.tsx    # Main landing page
-│       │   ├── layout.tsx  # Page layout and metadata
-│       │   └── globals.css # Main styling
-│       └── components/     # Visual components used by the page
-│
-└── server/                 # Backend prototype, not deployed right now
+**It coordinates itself.** With multiple instances polling the same experiment table, two agents could both decide a test had concluded and both open a PR. Visus uses PostgreSQL advisory-lock leader election so exactly one instance owns the decision step at a time.
+
+## Architecture
+
+```
+ URL + repo
+     │
+     ▼
+ Playwright ─▶ Gemini (vision) ─▶ ChromaDB RAG ─▶ variant generation
+     │                                                   │
+     │                                                   ▼
+     │                                      deterministic traffic split
+     │                                                   │
+     │                                                   ▼
+     │                             two-proportion z-test  (95% · min sample · lift)
+     │                                                   │
+     ▼                                                   ▼
+ ts-morph AST patch (DOM → JSX, 3-tier fallback) ──▶ GitHub PR
+                        │
+   PostgreSQL advisory-lock leader election  (one decider at a time)
 ```
 
----
+## Stack
 
-## Run It Locally
+| Layer | Tech |
+|---|---|
+| Agent orchestration | LangGraph |
+| Page analysis | Playwright · Gemini (vision) |
+| Retrieval | ChromaDB (RAG) |
+| Source patching | ts-morph (TypeScript AST) |
+| Data & coordination | PostgreSQL · Prisma |
+| Auth & secrets | JWT · bcrypt · encrypted GitHub tokens · HMAC endpoint tokens |
+| Frontend | Next.js 15 · React · Tailwind |
+| Infra | Docker · docker-compose |
+
+## Status
+
+- **Pipeline:** implemented end-to-end and unit-tested (analyze → crawl → ingest → hypothesize → variants → tracker inject → measurement → z-test → PR → RAG learning).
+- **Live deployment:** the marketing site is live on Vercel. The agent backend and dashboard run locally / via `docker-compose`.
+- **Next:** wiring the live demo to real experiment data and a full end-to-end run against a production site.
+
+## Run it locally
 
 ```bash
-cd client
-npm install
-npm run dev
+# frontend
+cd client && npm install && npm run dev     # http://localhost:3000
+
+# backend + services
+docker-compose up
 ```
 
-Then open:
+## What I'd do differently
 
-```text
-http://localhost:3000
-```
+- The three-tier AST fallback is a symptom, not a fix — the right answer is a **build-time DOM→JSX source map** rather than reconstructing the mapping at runtime.
+- The statistical gate is a **fixed-horizon** test, so results can't be peeked at early without inflating false positives. A **sequential test** would let the agent stop the moment the evidence is there.
 
 ---
 
-## Build It
-
-```bash
-cd client
-npm run build
-```
-
-The build should only show:
-
-```text
-/
-/_not-found
-```
-
-That means only the landing page is being deployed.
-
----
-
-## Deploy on Vercel
-
-Import the GitHub repo into Vercel and use these settings:
-
-| Setting | Value |
-|---|---|
-| Framework Preset | Next.js |
-| Root Directory | `client` |
-| Install Command | `npm install` |
-| Build Command | `npm run build` |
-| Output Directory | Leave default |
-
-Do not choose the `server` folder as the Vercel root.
-
----
-
-> Visus is an AI tool that helps websites improve themselves. It studies how users behave, finds weak parts of a page, creates better versions, tests them, and helps ship the version that works best.
-
-For the current demo:
-
-> This version is the landing page for the product. It shows the idea, the visual direction, and how the product would work. The backend prototype exists separately, but the live Vercel deployment is focused only on the landing page.
+<div align="center">
+Built by <b>Aditya Chawla</b> · <a href="https://github.com/adityachawla005">github.com/adityachawla005</a>
+</div>

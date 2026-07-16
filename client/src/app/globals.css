@@ -5375,3 +5375,87 @@ a { color: inherit; transition: color 0.15s, border-color 0.15s, background 0.15
   .dh-auth-side { border-right: 0; border-bottom: 1px solid var(--dh-line); }
   .dh-mini { display: none; }
 }
+
+/* ── Connect page (cn-*) — form + live self-running demo panel ───────────────── */
+/* Palette maps to the --dh-* tokens (provided by .dh-shell); the page wrapper is
+   transparent so the LiquidEmber shader shows through behind the panels. */
+.cn-wrap { max-width: 1160px; margin: 0 auto; padding: 44px 40px 90px; }
+.cn-back { color: var(--dh-muted); font-family: var(--dh-mono); font-size: 13px; display: inline-block; margin-bottom: 20px; text-decoration: none; }
+.cn-back:hover { color: var(--dh-cream); }
+.cn-h1 { font-family: var(--dh-display); font-weight: 900; font-size: clamp(52px, 8vw, 92px); line-height: .88; letter-spacing: -.03em; margin: 0 0 40px; }
+.cn-split { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+
+.cn-form { background: var(--dh-panel); border: 1px solid var(--dh-line); border-radius: 16px; padding: 28px; }
+.cn-field { margin-bottom: 24px; }
+.cn-field:last-of-type { margin-bottom: 0; }
+.cn-field label { display: block; font-family: var(--dh-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dh-muted); margin-bottom: 9px; }
+.cn-form input { width: 100%; background: var(--dh-bg-2); border: 1px solid var(--dh-line); border-radius: 10px; padding: 14px; color: var(--dh-cream); font-family: var(--dh-display); font-size: 15px; transition: border-color .15s, box-shadow .15s; }
+.cn-form input::placeholder { color: var(--dh-faint); }
+.cn-form input:focus { outline: none; border-color: var(--dh-orange); box-shadow: 0 0 0 3px var(--dh-orange-dim); }
+.cn-prefixed { display: flex; align-items: center; background: var(--dh-bg-2); border: 1px solid var(--dh-line); border-radius: 10px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.cn-prefixed:focus-within { border-color: var(--dh-orange); box-shadow: 0 0 0 3px var(--dh-orange-dim); }
+.cn-pre { font-family: var(--dh-mono); font-size: 14px; color: var(--dh-faint); padding-left: 14px; white-space: nowrap; }
+.cn-prefixed input { background: transparent; border: 0; border-radius: 0; padding-left: 6px; }
+.cn-prefixed input:focus { box-shadow: none; }
+.cn-help { font-family: var(--dh-mono); font-size: 11px; color: var(--dh-faint); margin-top: 9px; line-height: 1.5; }
+.cn-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; background: var(--dh-bg-2); border: 1px solid var(--dh-line); border-radius: 10px; padding: 15px 16px; margin: 26px 0 24px; }
+.cn-toggle-row strong { display: block; font-size: 14px; margin-bottom: 3px; }
+.cn-toggle-row span { font-family: var(--dh-mono); font-size: 11px; color: var(--dh-faint); line-height: 1.5; }
+.cn-tg { position: relative; width: 46px; height: 26px; flex: 0 0 auto; cursor: pointer; }
+.cn-tg input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.cn-slot { position: absolute; inset: 0; background: var(--dh-panel-2); border: 1px solid var(--dh-line-2); border-radius: 999px; transition: .15s; }
+.cn-knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--dh-muted); transition: .15s; }
+.cn-tg input:checked ~ .cn-slot { background: var(--dh-orange-dim); border-color: var(--dh-orange); }
+.cn-tg input:checked ~ .cn-knob { transform: translateX(20px); background: var(--dh-orange); }
+.cn-submit { width: 100%; background: linear-gradient(180deg, var(--dh-orange-hi), var(--dh-orange)); color: #140b06; border: 0; border-radius: 10px; padding: 16px; font-family: var(--dh-display); font-weight: 800; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: filter .15s, transform .05s; }
+.cn-submit:hover { filter: brightness(1.06); }
+.cn-submit:active { transform: translateY(1px); }
+.cn-submit:disabled { opacity: .6; cursor: not-allowed; }
+.cn-error { color: #ff6b57; font-family: var(--dh-mono); font-size: 12px; margin: 16px 0 0; }
+
+.cn-aside { position: sticky; top: 28px; }
+.cn-term { border: 1px solid var(--dh-line-2); border-radius: 14px; overflow: hidden; background: var(--dh-bg-2); }
+.cn-tbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: #0d0c0a; border-bottom: 1px solid var(--dh-line); }
+.cn-dot { width: 10px; height: 10px; border-radius: 50%; }
+.cn-dot-r { background: #ff5f56; }
+.cn-dot-y { background: #febc2e; }
+.cn-dot-g { background: #28c840; }
+.cn-ttl { flex: 1; text-align: center; font-family: var(--dh-mono); font-size: 11px; color: var(--dh-muted); letter-spacing: .06em; }
+.cn-tbody { padding: 18px; }
+
+.cn-site { border-radius: 10px; overflow: hidden; border: 1px solid var(--dh-line-2); background: #fff; position: relative; }
+.cn-sbar { display: flex; align-items: center; gap: 5px; padding: 7px 10px; background: #f2f2f0; border-bottom: 1px solid #e5e5e2; }
+.cn-sd { width: 6px; height: 6px; border-radius: 50%; background: #cfcfca; }
+.cn-surl { margin-left: 5px; font-family: var(--dh-mono); font-size: 9px; color: #9a9a94; }
+.cn-render { padding: 22px 16px 26px; text-align: center; color: #0a0a0a; }
+.cn-eb { font-family: var(--dh-mono); font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: #4f46e5; }
+.cn-render h5 { font-family: var(--dh-display); font-weight: 800; font-size: 17px; margin: 7px 0 5px; letter-spacing: -.02em; }
+.cn-render p { font-size: 11px; color: #6b6b6b; margin: 0 auto 15px; max-width: 23ch; line-height: 1.5; }
+.cn-cta { display: inline-block; background: #4f46e5; color: #fff; font-weight: 600; font-size: 12.5px; padding: 9px 18px; border-radius: 7px; transition: transform .25s, box-shadow .25s; }
+.cn-cta.is-flag { box-shadow: 0 0 0 3px rgba(255, 90, 31, .5); }
+.cn-cta.is-pop { transform: scale(1.08); }
+.cn-scan { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--dh-orange), transparent); opacity: 0; pointer-events: none; }
+.cn-badge { position: absolute; left: 50%; transform: translateX(-50%); top: 10px; font-family: var(--dh-mono); font-size: 10px; color: var(--dh-orange); background: rgba(255, 90, 31, .12); border: 1px solid rgba(255, 90, 31, .4); border-radius: 6px; padding: 3px 9px; opacity: 0; transition: opacity .3s; }
+.cn-badge.is-on { opacity: 1; }
+
+.cn-status { font-family: var(--dh-mono); font-size: 12px; color: var(--dh-muted); margin: 18px 0 16px; min-height: 16px; display: flex; align-items: center; gap: 9px; }
+.cn-blip { width: 8px; height: 8px; border-radius: 50%; background: var(--dh-orange); box-shadow: 0 0 10px var(--dh-orange); }
+.cn-blip.is-idle { background: var(--dh-faint); box-shadow: none; }
+.cn-bar { display: grid; grid-template-columns: 18px 1fr 56px; gap: 10px; align-items: center; margin-bottom: 12px; font-family: var(--dh-mono); }
+.cn-bar-l { font-size: 12px; color: var(--dh-muted); }
+.cn-track { height: 8px; border-radius: 999px; background: var(--dh-panel-2); overflow: hidden; }
+.cn-fill { height: 100%; width: 0; border-radius: 999px; background: #4a463d; transition: width 1.1s cubic-bezier(.4, 0, .2, 1); }
+.cn-bar-b .cn-fill { background: linear-gradient(90deg, var(--dh-orange), var(--dh-orange-hi)); }
+.cn-bar-v { font-size: 12px; text-align: right; color: var(--dh-muted); }
+.cn-bar-b .cn-bar-v { color: var(--dh-orange); }
+.cn-verdict { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--dh-line); opacity: 0; transform: translateY(6px); transition: .5s; }
+.cn-verdict.is-on { opacity: 1; transform: none; }
+.cn-lift { font-family: var(--dh-display); font-weight: 900; font-size: 19px; color: var(--dh-orange); }
+.cn-meta { font-family: var(--dh-mono); font-size: 11px; color: var(--dh-muted); margin-top: 4px; }
+.cn-pr { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-family: var(--dh-mono); font-size: 11px; color: var(--dh-cream); border: 1px solid var(--dh-line-2); border-radius: 8px; padding: 7px 11px; opacity: 0; transition: .4s; }
+.cn-pr.is-on { opacity: 1; }
+.cn-pr-dot { width: 7px; height: 7px; border-radius: 50%; background: #28c840; }
+
+@media (max-width: 900px) { .cn-split { grid-template-columns: 1fr; } .cn-aside { position: static; } }
+@media (max-width: 600px) { .cn-wrap { padding-left: 22px; padding-right: 22px; } .cn-form { padding: 20px; } }
+@media (prefers-reduced-motion: reduce) { .cn-scan { display: none; } }
