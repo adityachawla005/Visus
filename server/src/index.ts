@@ -17,6 +17,7 @@ import experimentRouter from './routes/experiment';
 import trackerRouter from './routes/tracker';
 import authRouter from './routes/auth';
 import { requireAuth } from './auth';
+import { llmRateLimit } from './security';
 import { logger } from './logger';
 import { startBackgroundLoop } from './ai/loop';
 
@@ -57,10 +58,11 @@ app.use('/tracker', publicCors, trackerRouter);
 
 // Dashboard-facing routes — restricted origin + a valid login (JWT).
 app.use('/sessions', dashboardCors, requireAuth, sessionsRouter);
-app.use('/optimize', dashboardCors, requireAuth, optimizeRouter);
+// LLM-backed routes carry an extra per-user rate limit to protect the Gemini quota.
+app.use('/optimize', dashboardCors, requireAuth, llmRateLimit, optimizeRouter);
 app.use('/crawl', dashboardCors, requireAuth, crawlRouter);
-app.use('/analyze', dashboardCors, requireAuth, analyzeRouter);
-app.use('/experiment', dashboardCors, requireAuth, experimentRouter);
+app.use('/analyze', dashboardCors, requireAuth, llmRateLimit, analyzeRouter);
+app.use('/experiment', dashboardCors, requireAuth, llmRateLimit, experimentRouter);
 
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('Unhandled error', { err: err?.message ?? String(err) });

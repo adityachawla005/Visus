@@ -14,6 +14,7 @@
  *    increment a counter, blunting inflation.
  */
 import crypto from 'crypto';
+import type { Request, Response, NextFunction } from 'express';
 
 const SECRET = process.env.VISUS_TRACKER_SECRET ?? 'visus-dev-insecure-secret';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -76,4 +77,27 @@ export function clientIp(req: { headers: Record<string, unknown>; socket?: { rem
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.length > 0) return xff.split(',')[0].trim();
   return req.socket?.remoteAddress ?? 'unknown';
+}
+
+// ── LLM route protection ──────────────────────────────────────────────────────
+
+// Caps how many LLM-backed requests one caller can make in a window. This guards
+// the Gemini quota/key from abuse — even a valid login (or a stolen token) can't
+// burn unlimited generations. Tune via LLM_RATE_MAX / LLM_RATE_WINDOW_MS.
+const LLM_RATE_MAX = Number(process.env.LLM_RATE_MAX ?? 20);
+const LLM_RATE_WINDOW_MS = Number(process.env.LLM_RATE_WINDOW_MS ?? 60_000);
+
+/**
+ * Express middleware for expensive Gemini-backed routes. Keys the limit by
+ * authenticated user id when present (set by requireAuth), else by client IP,
+ * so one account can't monopolise the quota and unauthenticated abuse is capped
+ * per source. Mount AFTER requireAuth so req.user is populated.
+ */
+export function llmRateLimit(req: Request, res: Response, next: NextFunction): void {
+  const who = req.user?.id ? `user:${req.user.id}` : `ip:${clientIp(req)}`;
+  if (!rateLimit(`llm:${who}`, LLM_RATE_MAX, LLM_RATE_WINDOW_MS)) {
+    res.status(429).json({ error: 'Rate limit exceeded. Please slow down and try again shortly.' });
+    return;
+  }
+  next();
 }
