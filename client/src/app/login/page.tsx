@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch, setToken, ApiError } from '@/lib/api';
+import LiquidEmber from '@/components/LiquidEmber';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,7 +31,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="dh-auth">
+    <>
+      <LiquidEmber />
+      <div className="dh-auth">
       <main className="dh-auth-shell">
         <section className="dh-auth-side">
           <Link href="/" className="dh-auth-brand">
@@ -85,6 +88,7 @@ export default function LoginPage() {
           </div>
         </section>
       </main>
-    </div>
+      </div>
+    </>
   );
 }

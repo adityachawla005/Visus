@@ -5143,9 +5143,8 @@ a { color: inherit; transition: color 0.15s, border-color 0.15s, background 0.15
 
 .dh-shell { min-height: 100vh; color: var(--dh-cream);
   font-family: var(--font-archivo), system-ui, sans-serif;
-  background: var(--dh-bg);
-  background-image: radial-gradient(120% 80% at 100% -6%, rgba(255, 90, 31, 0.08), transparent 55%);
-  background-attachment: fixed; }
+  /* Background is the fixed <LiquidEmber> WebGL canvas behind this layer. */
+  position: relative; z-index: 1; background: transparent; }
 
 .dh-topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center;
   justify-content: space-between; height: 64px; padding: 0 40px;
@@ -5328,8 +5327,9 @@ a { color: inherit; transition: color 0.15s, border-color 0.15s, background 0.15
 
 /* ── Auth (login + signup) — two-column brand split ─────────────────────────── */
 .dh-auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; color: var(--dh-cream);
-  font-family: var(--font-archivo), system-ui, sans-serif; background: var(--dh-bg);
-  background-image: radial-gradient(120% 80% at 100% 0%, rgba(255, 90, 31, 0.10), transparent 55%); }
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  /* Background is the fixed <LiquidEmber> WebGL canvas behind this layer. */
+  position: relative; z-index: 1; background: transparent; }
 .dh-auth-shell { width: min(1020px, 100%); display: grid; grid-template-columns: 1.05fr 1fr;
   background: var(--dh-panel); border: 1px solid var(--dh-line); border-radius: 18px; overflow: hidden; }
 .dh-auth-side { padding: 40px 42px; border-right: 1px solid var(--dh-line); display: flex; flex-direction: column; gap: 34px;

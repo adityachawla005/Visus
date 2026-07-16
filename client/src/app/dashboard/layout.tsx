@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AuthProvider, useRequireAuth } from '@/lib/auth';
+import LiquidEmber from '@/components/LiquidEmber';
 
 function Chrome({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useRequireAuth();
@@ -35,6 +36,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
+      <LiquidEmber />
       <Chrome>{children}</Chrome>
     </AuthProvider>
   );
