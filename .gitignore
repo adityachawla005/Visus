@@ -1,5 +1,9 @@
 client/public/*.mp4
 
+# Local agent/editor config — never commit
+.claude/
+CLAUDE.md
+
 # Secrets — never commit
 .env
 .env.*
