@@ -1,8 +1,5 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '@/lib/api';
+import { serverFetch } from '@/lib/server-api';
 
 interface Hypothesis {
   id: number;
@@ -35,18 +32,10 @@ const STATUS_CLASS: Record<string, string> = {
   cooldown: 'cooldown', failed: 'failed',
 };
 
-export default function DashboardPage() {
-  const [sites, setSites] = useState<Site[] | null>(null);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    apiFetch<Site[]>('/experiment')
-      .then(setSites)
-      .catch((e) => setError(e.message ?? 'Failed to load'));
-  }, []);
-
-  if (error) return <main className="dh-main"><div className="dh-empty">{error}</div></main>;
-  if (!sites) return <main className="dh-main"><div className="dh-loading">Loading experiments…</div></main>;
+// Server component — the experiment list is fetched before the HTML is sent,
+// so the page arrives populated instead of empty-then-filled.
+export default async function DashboardPage() {
+  const sites = await serverFetch<Site[]>('/experiment');
 
   // Summary stats across all sites.
   const allHyps = sites.flatMap((s) => s.experiments[0]?.hypotheses ?? []);

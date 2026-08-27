@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiFetch, setToken, ApiError } from '@/lib/api';
+import { apiFetch, ApiError } from '@/lib/api';
 import LiquidEmber from '@/components/LiquidEmber';
 
 export default function SignupPage() {
@@ -23,12 +23,14 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      const { token } = await apiFetch<{ token: string }>('/auth/register', {
+      // The route handler stores the JWT in an httpOnly cookie; nothing comes
+      // back to JS but the user.
+      await apiFetch('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ email, password, name: name || undefined }),
       });
-      setToken(token);
       router.push('/dashboard');
+      router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
       setLoading(false);
