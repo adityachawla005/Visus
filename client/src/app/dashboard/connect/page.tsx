@@ -25,6 +25,7 @@ export default function ConnectPage() {
         body: JSON.stringify({ url, githubRepo, githubToken, autoMerge }),
       });
       router.push('/dashboard');
+      router.refresh(); // the list is server-rendered — force a refetch
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start');
       setLoading(false);
