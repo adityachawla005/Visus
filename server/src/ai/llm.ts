@@ -14,7 +14,7 @@ export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://localhost:
 export const OLLAMA_MODEL    = process.env.OLLAMA_MODEL    ?? 'llama3';
 export const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text';
 
-export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-flash-latest';
 
 // Single shared client. Env is loaded (dotenv) before this module initializes,
 // so the key is present; an empty key just means calls fail → caller fallback.

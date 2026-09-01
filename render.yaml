@@ -33,6 +33,10 @@ services:
         value: https://visus-m49n.onrender.com
       - key: TRACKER_URL
         value: https://visus-m49n.onrender.com/tracker.js
+      # Pin the model explicitly — the previous hardcoded default was retired
+      # by Google and every LLM call 404'd until someone looked.
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
       # Free instances sleep after ~15min idle, so the 60s poll loop can't run
       # reliably. Remove this (or set 'true') on an always-on paid instance.
       - key: ENABLE_BACKGROUND_LOOP

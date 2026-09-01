@@ -29,7 +29,7 @@ export interface SiteProfile {
 }
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-flash-latest';
 const gemini = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
 // Cap stored outerHTML so the selectorMap JSON stays small but variant
