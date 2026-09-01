@@ -24,6 +24,15 @@ services:
           property: connectionString
       - key: DASHBOARD_ORIGIN
         value: https://visus-zeta.vercel.app
+      # The server writes these into the tracker snippet it injects into client
+      # sites, so they must be its own public URL — not localhost, which is what
+      # injector.ts/crawl.ts fall back to when they're unset.
+      - key: VISUS_API_URL
+        value: https://visus-m49n.onrender.com
+      - key: API_URL
+        value: https://visus-m49n.onrender.com
+      - key: TRACKER_URL
+        value: https://visus-m49n.onrender.com/tracker.js
       # Free instances sleep after ~15min idle, so the 60s poll loop can't run
       # reliably. Remove this (or set 'true') on an always-on paid instance.
       - key: ENABLE_BACKGROUND_LOOP
