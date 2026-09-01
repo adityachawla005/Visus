@@ -1,0 +1,40 @@
+# Render Blueprint — mirrors the Railway setup.
+# Build context is the repo root (the Dockerfile copies client/public/tracker.js).
+
+databases:
+  - name: visus-db
+    databaseName: visus
+    user: visus
+    plan: free
+
+services:
+  - type: web
+    name: visus
+    runtime: docker
+    repo: https://github.com/adityachawla005/Visus
+    branch: master
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /ping
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: visus-db
+          property: connectionString
+      - key: DASHBOARD_ORIGIN
+        value: https://visus-zeta.vercel.app
+      # Free instances sleep after ~15min idle, so the 60s poll loop can't run
+      # reliably. Remove this (or set 'true') on an always-on paid instance.
+      - key: ENABLE_BACKGROUND_LOOP
+        value: "false"
+      # PORT is injected by Render; src/index.ts already reads process.env.PORT.
+      # Secrets — set these in the Render dashboard, never committed.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: VISUS_TRACKER_SECRET
+        sync: false
+      - key: TOKEN_ENC_KEY
+        sync: false

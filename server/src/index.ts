@@ -71,5 +71,12 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(PORT, () => {
   logger.info(`Server running on http://localhost:${PORT}`);
-  startBackgroundLoop();
+  // The loop polls every 60s and launches Chromium, so it needs an always-on
+  // instance. Hosts that sleep idle containers (Render free) must set this to
+  // 'false' — a loop that dies mid-run leaves half-finished hypotheses behind.
+  if (process.env.ENABLE_BACKGROUND_LOOP === 'false') {
+    logger.info('Background loop disabled (ENABLE_BACKGROUND_LOOP=false)');
+  } else {
+    startBackgroundLoop();
+  }
 });
