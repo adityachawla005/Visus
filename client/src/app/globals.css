@@ -5459,3 +5459,20 @@ a { color: inherit; transition: color 0.15s, border-color 0.15s, background 0.15
 @media (max-width: 900px) { .cn-split { grid-template-columns: 1fr; } .cn-aside { position: static; } }
 @media (max-width: 600px) { .cn-wrap { padding-left: 22px; padding-right: 22px; } .cn-form { padding: 20px; } }
 @media (prefers-reduced-motion: reduce) { .cn-scan { display: none; } }
+
+/* ── In-flight work ───────────────────────────────────────────────────────── */
+/* The analyzing badge breathes so a long backend cycle reads as "working",
+   not "stuck". AutoRefresh re-fetches the page behind it. */
+.dh-badge.analyzing::before { animation: dh-pulse 1.2s ease-in-out infinite; }
+@keyframes dh-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+
+.dh-loading { display: flex; align-items: center; gap: 10px; padding: 14px 0;
+  font-family: var(--dh-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--dh-faint); }
+.dh-loading::before { content: ""; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--dh-line-2); border-top-color: var(--dh-orange-hi);
+  animation: dh-spin 0.8s linear infinite; }
+@keyframes dh-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dh-badge.analyzing::before, .dh-loading::before { animation: none; }
+}

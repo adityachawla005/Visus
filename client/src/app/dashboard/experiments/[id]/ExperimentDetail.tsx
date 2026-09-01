@@ -83,7 +83,7 @@ export default function ExperimentDetail({ id, data }: { id: string; data: Detai
       {error && <div className="dh-error" style={{ marginBottom: 14 }}>{error}</div>}
 
       {data.hypotheses.length === 0 ? (
-        <div className="dh-empty">No hypotheses yet — Visus is still analyzing.</div>
+        <div className="dh-loading">analysing site — generating hypotheses…</div>
       ) : (
         data.hypotheses.map((h) => {
           const canApprove = h.status === 'completed' && h.prUrl && !data.site.autoMerge && !merged[h.id];

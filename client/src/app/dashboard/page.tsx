@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { serverFetch } from '@/lib/server-api';
 import RemoveSiteButton from '@/components/RemoveSiteButton';
+import AutoRefresh from '@/components/AutoRefresh';
 
 interface Hypothesis {
   id: number;
@@ -44,8 +45,12 @@ export default async function DashboardPage() {
   const shipped = allHyps.filter((h) => h.prUrl).length;
   const bestLift = allHyps.reduce((m, h) => Math.max(m, h.liftPct ?? 0), 0);
 
+  // Analysis runs in the background on the server; poll while any site is mid-cycle.
+  const analyzing = sites.some((s) => s.experiments[0]?.status === 'analyzing');
+
   return (
     <main className="dh-main">
+      <AutoRefresh active={analyzing} />
       <div className="dh-head">
         <div>
           <h1 className="dh-h1">Experiments</h1>
@@ -97,6 +102,10 @@ export default async function DashboardPage() {
                     {exp && <span className="dh-chip">cycle {exp.cycleCount}</span>}
                     {best > 0 && <span className="dh-chip o">+{best.toFixed(1)}% best lift</span>}
                   </div>
+
+                  {hyps.length === 0 && status === 'analyzing' && (
+                    <div className="dh-loading">analysing site — generating hypotheses…</div>
+                  )}
 
                   {hyps.length > 0 && (
                     <div className="dh-hyps">
