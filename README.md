@@ -30,6 +30,24 @@ Point it at a URL and a repo. From there it runs the entire cycle on its own:
 
 The whole cycle typically closes in under two minutes.
 
+## What it looks like
+
+<div align="center">
+
+<img src="img/landing.png" alt="Visus landing page" width="100%">
+
+<em>The landing page.</em>
+
+<img src="img/experiment.png" alt="Experiment view with the site profile Gemini inferred" width="100%">
+
+<em>A live experiment — theme, tone, conversion goal and audience are inferred from the page itself, then hypotheses are generated against what the vision model found wrong.</em>
+
+<img src="img/variants.png" alt="Control and challenger variants with live CTR, views and clicks" width="100%">
+
+<em>Control against challenger, with CTR, views and clicks per arm. Nothing ships until the z-test clears.</em>
+
+</div>
+
 ## The parts that aren't the LLM
 
 The interesting engineering isn't the model call — it's everything that keeps the agent honest.
@@ -76,8 +94,8 @@ The interesting engineering isn't the model call — it's everything that keeps 
 ## Status
 
 - **Pipeline:** implemented end-to-end and unit-tested (analyze → crawl → ingest → hypothesize → variants → tracker inject → measurement → z-test → PR → RAG learning).
-- **Live deployment:** the marketing site is live on Vercel. The agent backend and dashboard run locally / via `docker-compose`.
-- **Next:** wiring the live demo to real experiment data and a full end-to-end run against a production site.
+- **Live deployment:** the marketing site and dashboard run on Vercel; the agent backend runs on Render from `server/Dockerfile` against managed PostgreSQL. `docker-compose` still brings the whole stack up locally.
+- **Next:** a full end-to-end run against a production site — tracker merged, traffic split, winner shipped by PR.
 
 ## Run it locally
 

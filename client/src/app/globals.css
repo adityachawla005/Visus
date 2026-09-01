@@ -5207,8 +5207,10 @@ a { color: inherit; transition: color 0.15s, border-color 0.15s, background 0.15
 
 .dh-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px;
   font-family: var(--dh-mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
-  white-space: nowrap; border: 1px solid var(--dh-line-2); }
-.dh-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+  white-space: nowrap; border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent); }
+/* Flat marker, no halo — the tinted chip carries the status colour instead. */
+.dh-badge::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
 .dh-badge.running   { color: var(--dh-orange); }
 .dh-badge.analyzing { color: var(--dh-orange-hi); }
 .dh-badge.completed { color: var(--dh-cream); }
