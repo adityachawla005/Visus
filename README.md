@@ -34,15 +34,15 @@ The whole cycle typically closes in under two minutes.
 
 <div align="center">
 
-<img src="img/landing.png" alt="Visus landing page" width="100%">
+<img src="img/landing-v2.png" alt="Visus landing page" width="100%">
 
 <em>The landing page.</em>
 
-<img src="img/experiment.png" alt="Experiment view with the site profile Gemini inferred" width="100%">
+<img src="img/experiment-v2.png" alt="Experiment view with the site profile Gemini inferred" width="100%">
 
 <em>A live experiment — theme, tone, conversion goal and audience are inferred from the page itself, then hypotheses are generated against what the vision model found wrong.</em>
 
-<img src="img/variants.png" alt="Control and challenger variants with live CTR, views and clicks" width="100%">
+<img src="img/variants-v2.png" alt="Control and challenger variants with live CTR, views and clicks" width="100%">
 
 <em>Control against challenger, with CTR, views and clicks per arm. Nothing ships until the z-test clears.</em>
 
