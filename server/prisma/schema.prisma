@@ -38,7 +38,7 @@ model Site {
 model SiteProfile {
   id             String   @id @default(cuid())
   siteId         String   @unique
-  site           Site     @relation(fields: [siteId], references: [id])
+  site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
   theme          String   @default("")
   tone           String   @default("")
   primaryColors  Json     @default("[]")
@@ -57,7 +57,7 @@ model SiteProfile {
 model Experiment {
   id            Int          @id @default(autoincrement())
   siteId        String
-  site          Site         @relation(fields: [siteId], references: [id])
+  site          Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
   status        String       @default("analyzing") // analyzing | running | completed | failed | cooldown
   cycleCount    Int          @default(0)
   cooldownUntil DateTime?
@@ -69,7 +69,7 @@ model Experiment {
 model Hypothesis {
   id              Int        @id @default(autoincrement())
   experimentId    Int
-  experiment      Experiment @relation(fields: [experimentId], references: [id])
+  experiment      Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   description     String
   elementSelector String
   rationale       String
@@ -87,7 +87,7 @@ model Hypothesis {
 model DiscoveredPage {
   id          Int      @id @default(autoincrement())
   siteId      String
-  site        Site     @relation(fields: [siteId], references: [id])
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
   url         String
   path        String
   title       String   @default("")
@@ -110,14 +110,14 @@ model Variant {
   html         String      @default("")
   css          String      @default("")
   hypothesisId Int?
-  hypothesis   Hypothesis? @relation(fields: [hypothesisId], references: [id])
+  hypothesis   Hypothesis? @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
   createdAt    DateTime    @default(now())
 }
 
 model PageElement {
   id        String   @id @default(cuid())
   siteId    String?
-  site      Site?    @relation(fields: [siteId], references: [id])
+  site      Site?    @relation(fields: [siteId], references: [id], onDelete: Cascade)
   domId     String
   tag       String
   classes   String

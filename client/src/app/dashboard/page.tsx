@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { serverFetch } from '@/lib/server-api';
+import RemoveSiteButton from '@/components/RemoveSiteButton';
 
 interface Hypothesis {
   id: number;
@@ -82,6 +83,7 @@ export default async function DashboardPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {exp && <Link href={`/dashboard/experiments/${exp.id}`} className="dh-pr">view →</Link>}
                     <span className={`dh-badge ${STATUS_CLASS[status] ?? 'none'}`}>{status}</span>
+                    <RemoveSiteButton siteId={site.id} url={site.url} />
                   </div>
                 </div>
 

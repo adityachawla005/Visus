@@ -4,6 +4,7 @@ import { startExperimentCycle } from '../ai/loop';
 import { isPRMerged } from '../ai/patcher';
 import { encryptSecret, decryptSecret } from '../crypto';
 import { Octokit } from '@octokit/rest';
+import { logger } from '../logger';
 
 const router = Router();
 
@@ -270,6 +271,29 @@ router.patch('/site/:siteId/settings', async (req: Request, res: Response): Prom
     res.json({ success: true, site });
   } catch {
     res.status(500).json({ error: 'Update failed' });
+  }
+});
+
+// DELETE /experiment/site/:siteId — disconnect a site and drop its data.
+// Experiments, hypotheses, variants, discovered pages, elements and the profile
+// all cascade (see the FK constraints); Sessions carry a bare siteId with no FK,
+// so they're cleared explicitly.
+router.delete('/site/:siteId', async (req: Request, res: Response): Promise<void> => {
+  const { siteId } = req.params;
+
+  try {
+    const owned = await prisma.site.findUnique({ where: { id: siteId }, select: { ownerId: true } });
+    if (!owned || owned.ownerId !== req.user!.id) { res.status(404).json({ error: 'Not found' }); return; }
+
+    await prisma.$transaction([
+      prisma.session.deleteMany({ where: { siteId } }),
+      prisma.site.delete({ where: { id: siteId } }),
+    ]);
+
+    res.status(204).end();
+  } catch (err) {
+    logger.error('Site delete failed', { siteId, err: (err as Error).message });
+    res.status(500).json({ error: 'Delete failed' });
   }
 });
 
