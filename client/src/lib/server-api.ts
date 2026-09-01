@@ -9,8 +9,11 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+// Server-only (this module imports next/headers), so no NEXT_PUBLIC_ prefix:
+// the URL stays out of the browser bundle and is read at runtime, meaning a
+// change to it no longer needs a rebuild.
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8080';
+  process.env.API_URL?.replace(/\/$/, '') || 'http://localhost:8080';
 
 export const TOKEN_COOKIE = 'visus_token';
 
