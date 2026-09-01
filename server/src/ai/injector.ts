@@ -179,6 +179,21 @@ export async function injectTrackerPR(options: InjectOptions): Promise<InjectRes
       base:  repoData.default_branch,
     });
 
+    // The tracker PR self-merges: it's an additive two-line snippet and no data
+    // arrives until it lands, so gating onboarding behind a human click just
+    // parks the pipeline. Experiment PRs are separate — those honour
+    // site.autoMerge (see patcher.ts) and stay manual by default.
+    try {
+      await octokit.rest.pulls.merge({
+        owner, repo: repoName,
+        pull_number:  pr.number,
+        merge_method: 'squash',
+      });
+    } catch (mergeErr) {
+      // Branch protection or a dirty base — the PR still stands for a manual merge.
+      console.warn('[Injector] Auto-merge failed:', (mergeErr as Error).message);
+    }
+
     return { prUrl: pr.html_url, prNumber: pr.number };
   } catch (err) {
     console.error('[Injector] Failed:', (err as Error).message);
